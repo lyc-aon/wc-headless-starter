@@ -358,7 +358,7 @@
 		lastTrackedVariationId = v.id;
 		import('$lib/analytics').then((a) => {
 			const pl = { id: v.id, name: p.name, prices: v.prices, permalink: p.permalink, images: p.images };
-			a.trackViewItem({ id: v.id, name: p.name, prices: v.prices });
+			a.trackViewItem({ id: v.id, name: p.name, prices: v.prices, permalink: p.permalink, images: p.images });
 			a.trackOmnisendViewedProduct(pl);
 			a.trackKlaviyoViewedProduct(pl);
 			a.trackMetaViewContent(pl);
@@ -902,7 +902,7 @@
 			<div class="pdp-xsell__head">
 				<p class="pdp-xsell__label">You might also like</p>
 			</div>
-			<ProductSlider products={crossSells} />
+			<ProductSlider products={crossSells} listingSource="Cross-sells" />
 		</section>
 	{/if}
 {/if}

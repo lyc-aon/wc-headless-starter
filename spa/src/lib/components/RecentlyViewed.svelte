@@ -79,7 +79,7 @@
 		<div class="homepage-module__head">
 			<p class="homepage-module__label">{title}</p>
 		</div>
-		<ProductSlider {products} {edge_to_edge} />
+		<ProductSlider {products} {edge_to_edge} listingSource="Recently viewed" />
 	</section>
 {/if}
 

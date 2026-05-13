@@ -483,6 +483,8 @@ export type ActiveScript = {
 	defer: boolean;
 	placement: 'head' | 'body_end';
 	surfaces: Array<'spa' | 'wp'>;
+	/** Admin-curated registry JS; runs before `src` when both are set. */
+	inline?: string;
 };
 
 const DEFAULTS: SiteConfig = {

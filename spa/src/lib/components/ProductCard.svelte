@@ -49,7 +49,7 @@
 
 	type StepDef = { type: 'attribute'; key: string } | { type: 'quantity' };
 
-	let { product, cardWidth = 252 }: { product: Product; cardWidth?: number } = $props();
+	let { product, cardWidth = 252, listingSource }: { product: Product; cardWidth?: number; listingSource?: string } = $props();
 	let fontsReady = $state(false);
 	let adding = $state(false);
 	let justAdded = $state(false);
@@ -297,6 +297,24 @@
 		if (Number.isFinite(v)) quantity = Math.max(1, Math.min(maxQty, v));
 	}
 
+	function reportProductLinkIntent(e: MouseEvent) {
+		const el = e.currentTarget;
+		if (!(el instanceof HTMLAnchorElement)) return;
+		if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+		const src = listingSource?.trim() || 'Product listing';
+		void import('$lib/analytics').then((m) =>
+			m.trackCustomerLabsProductClickedFromListing({
+				id: product.id,
+				name: product.name,
+				slug: product.slug,
+				prices: product.prices,
+				permalink: product.permalink,
+				image: product.images[0]?.src,
+				listingSource: src,
+			})
+		);
+	}
+
 	async function handleAction(e: Event) {
 		e.preventDefault();
 		e.stopPropagation();
@@ -325,7 +343,7 @@
 </script>
 
 <div class="store-card" class:is-oos={!inStock}>
-	<a class="store-card__media-link" href="/product/{product.slug}" aria-label={product.name}>
+	<a class="store-card__media-link" href="/product/{product.slug}" aria-label={product.name} onclick={reportProductLinkIntent}>
 		<div class="store-card__media">
 			{#if product.images[0]}
 				<img src={product.images[0].src} alt={product.images[0].alt || product.name} loading="lazy" />
@@ -358,7 +376,7 @@
 	</a>
 
 	<div class="store-card__body">
-		<a class="store-card__title-link" href="/product/{product.slug}">
+		<a class="store-card__title-link" href="/product/{product.slug}" onclick={reportProductLinkIntent}>
 			<h3
 				class="store-card__title"
 				style={titleLayout && config.data.product_card?.title_lines === 'auto' ? `height: ${titleLayout.height}px` : ''}

@@ -38,6 +38,10 @@ declare global {
 		hj: ((...args: unknown[]) => void) & { q?: unknown[] };
 		_hjSettings: { hjid: number; hjsv: number };
 		gtag: (...args: unknown[]) => void;
+		_cl?: {
+			pageview?: (eventName: string, properties: Record<string, unknown>) => void;
+			trackClick?: (eventName: string, properties: Record<string, unknown>) => void;
+		};
 	}
 }
 
@@ -236,6 +240,7 @@ export function trackPageView(path: string, title?: string): void {
 		page_path: path,
 		page_title: title || document.title,
 	});
+	trackCustomerLabsVirtualPageview(path, title || (typeof document !== 'undefined' ? document.title : ''));
 }
 
 /**
@@ -258,6 +263,7 @@ export function trackViewItemList(
 			})),
 		},
 	});
+	trackCustomerLabsProductsListViewed(listName);
 }
 
 /**
@@ -266,7 +272,9 @@ export function trackViewItemList(
 export function trackViewItem(product: {
 	id: number;
 	name: string;
-	prices: { price: string; currency_minor_unit: number };
+	prices: { price: string; currency_minor_unit: number; currency_code?: string };
+	permalink?: string;
+	images?: { src: string }[];
 }): void {
 	window.dataLayer?.push({ ecommerce: null });
 	window.dataLayer?.push({
@@ -279,6 +287,7 @@ export function trackViewItem(product: {
 			}],
 		},
 	});
+	trackCustomerLabsProductViewed(product);
 }
 
 /**
@@ -290,6 +299,8 @@ export function trackAddToCart(item: {
 	price: string;
 	currency_minor_unit: number;
 	quantity: number;
+	permalink?: string;
+	image?: string;
 }): void {
 	window.dataLayer?.push({ ecommerce: null });
 	window.dataLayer?.push({
@@ -303,6 +314,7 @@ export function trackAddToCart(item: {
 			}],
 		},
 	});
+	trackCustomerLabsAddedToCart(item);
 }
 
 /**
@@ -668,5 +680,154 @@ export function trackGoogleAdsConversion(o: PixelOrder, conversionId: string, co
 		value: priceAsNumber(o.totals.total_price, meta),
 		currency: o.totals.currency_code,
 		transaction_id: String(o.id),
+	});
+}
+
+// ── CustomerLabs 1PD Ops (_cl) ─────────────────────────────────────────
+// https://customerlabs.com/docs/website-event-tracking/developer-documentation/javascript-api-documentation/
+// Event shapes use typed { t, v } fields per their API. No-ops when the
+// CustomerLabs script is not installed (Site Scripts → CustomerLabs off).
+
+type CLScalar = { t: 'string' | 'number'; v: string };
+
+function clStr(v: string): CLScalar {
+	const s = v.replace(/[\u0000-\u001F<>"'`\\]/g, ' ').trim();
+	return { t: 'string', v: s.slice(0, 2000) };
+}
+
+function clNumMinor(priceMinorStr: string): CLScalar {
+	const n = Math.round(Number(priceMinorStr) || 0);
+	return { t: 'number', v: String(n) };
+}
+
+function clPageUrl(): CLScalar {
+	if (typeof window === 'undefined') return { t: 'string', v: '' };
+	return clStr(window.location.href.split('#')[0]);
+}
+
+function clProductPropsRow(p: {
+	id: number;
+	name: string;
+	priceMinor: string;
+	quantity?: number;
+	image?: string;
+	variantLabel?: string;
+}): Record<string, CLScalar> {
+	const row: Record<string, CLScalar> = {
+		product_id: { t: 'number', v: String(p.id) },
+		product_name: clStr(p.name),
+		product_price: clNumMinor(p.priceMinor),
+	};
+	if (p.quantity != null) row.product_quantity = { t: 'number', v: String(Math.max(0, Math.round(p.quantity))) };
+	if (p.image) row.product_image = clStr(p.image);
+	if (p.variantLabel) row.product_variant = clStr(p.variantLabel);
+	return row;
+}
+
+let customerLabsNavigationCount = 0;
+
+/** SPA client navigations — first shell load relies on CustomerLabs’ default pageview. */
+export function trackCustomerLabsVirtualPageview(path: string, title: string): void {
+	if (typeof window === 'undefined') return;
+	customerLabsNavigationCount++;
+	if (customerLabsNavigationCount <= 1) return;
+	const href =
+		`${window.location.origin}${path.startsWith('/') ? path : `/${path}`}`.split('#')[0];
+	window._cl?.pageview?.('Page viewed', {
+		customProperties: {
+			page_url: clStr(href),
+			page_title: clStr(title || document.title || path),
+		},
+	});
+}
+
+export function trackCustomerLabsProductsListViewed(listName: string): void {
+	if (typeof window === 'undefined') return;
+	window._cl?.pageview?.('Products list viewed', {
+		customProperties: {
+			page_url: clPageUrl(),
+			category_name: clStr(listName),
+		},
+	});
+}
+
+export function trackCustomerLabsProductViewed(product: {
+	id: number;
+	name: string;
+	prices: { price: string; currency_minor_unit: number };
+	permalink?: string;
+	images?: { src: string }[];
+}): void {
+	if (typeof window === 'undefined') return;
+	const pageUrl = product.permalink || window.location.href.split('#')[0];
+	window._cl?.trackClick?.('Product viewed', {
+		productProperties: [
+			clProductPropsRow({
+				id: product.id,
+				name: product.name,
+				priceMinor: product.prices.price,
+				quantity: 1,
+				image: product.images?.[0]?.src,
+			}),
+		],
+		customProperties: {
+			page_url: clStr(pageUrl),
+		},
+	});
+}
+
+export function trackCustomerLabsProductClickedFromListing(p: {
+	id: number;
+	name: string;
+	slug: string;
+	prices: { price: string; currency_minor_unit: number };
+	permalink: string;
+	image?: string;
+	listingSource: string;
+}): void {
+	if (typeof window === 'undefined') return;
+	const pageUrl = p.permalink || `${window.location.origin}/product/${p.slug}`;
+	window._cl?.trackClick?.('Product clicked', {
+		productProperties: [
+			clProductPropsRow({
+				id: p.id,
+				name: p.name,
+				priceMinor: p.prices.price,
+				quantity: 1,
+				image: p.image,
+			}),
+		],
+		customProperties: {
+			page_url: clStr(pageUrl),
+			clicked_from: clStr(p.listingSource),
+		},
+	});
+}
+
+export function trackCustomerLabsAddedToCart(item: {
+	id: number;
+	name: string;
+	price: string;
+	currency_minor_unit: number;
+	quantity: number;
+	permalink?: string;
+	image?: string;
+}): void {
+	if (typeof window === 'undefined') return;
+	const pageUrl = item.permalink || window.location.href.split('#')[0];
+	window._cl?.trackClick?.('Added to cart', {
+		productProperties: [
+			clProductPropsRow({
+				id: item.id,
+				name: item.name,
+				priceMinor: item.price,
+				quantity: item.quantity,
+				image: item.image,
+			}),
+		],
+		customProperties: {
+			page_url: clStr(pageUrl),
+			clicked_from: clStr('storefront'),
+		},
 	});
 }

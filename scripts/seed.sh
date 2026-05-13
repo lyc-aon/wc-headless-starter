@@ -18,6 +18,8 @@ set -a
 . "$ROOT/.env"
 set +a
 
+COMPOSE="$SCRIPT_DIR/wchs-compose.sh"
+
 : "${WP_SITE_URL:?WP_SITE_URL missing in .env}"
 : "${WP_SITE_TITLE:?WP_SITE_TITLE missing in .env}"
 : "${WP_ADMIN_USER:?WP_ADMIN_USER missing in .env}"
@@ -27,7 +29,7 @@ set +a
 wp() {
   # Bump memory for WP admin operations (plugin activation, dashboard loads).
   # The default 128M OOMs on anything non-trivial.
-  docker compose exec -T -u 33:33 wpcli php -d memory_limit=1024M /usr/local/bin/wp "$@"
+  "$COMPOSE" exec -T -u 33:33 wpcli php -d memory_limit=1024M /usr/local/bin/wp "$@"
 }
 
 if ! wp core is-installed 2>/dev/null; then
@@ -112,7 +114,7 @@ fi
 if ! wp eval 'echo wc_get_product(23) && wc_get_product(23)->get_image_id() ? "hasimg" : "noimg";' 2>/dev/null | grep -q hasimg; then
   echo "seeding product images..."
   # Stage images inside the wpcli container via picsum
-  docker compose exec -T -u 0:0 wpcli sh -c '
+  "$COMPOSE" exec -T -u 0:0 wpcli sh -c '
     mkdir -p /tmp/wchs-images
     cd /tmp/wchs-images
     for i in 1 2 3 4 5 6; do

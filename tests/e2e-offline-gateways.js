@@ -27,7 +27,7 @@ async function shoot(page, label) {
 
 function wp(php) {
 	return execSync(
-		`cd ${ROOT} && docker compose exec -T -u 33:33 wpcli php -d memory_limit=1024M /usr/local/bin/wp eval '${php.replace(/'/g, "'\\''")}'`,
+		`cd ${ROOT} && ./scripts/wchs-compose.sh exec -T -u 33:33 wpcli php -d memory_limit=1024M /usr/local/bin/wp eval '${php.replace(/'/g, "'\\''")}'`,
 		{ stdio: 'pipe' }
 	).toString().trim();
 }

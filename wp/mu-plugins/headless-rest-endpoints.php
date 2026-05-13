@@ -858,7 +858,7 @@ function wchs_rest_config( \WP_REST_Request $request ) {
  *     (e.g. if gtm_id is set under Integrations, we skip active_scripts[gtm]).
  *
  * Returned shape:
- *   [ { id, name, src, async, defer, placement, surfaces }, ... ]
+ *   [ { id, name, src, async, defer, placement, surfaces, category, mark, inline? }, ... ]
  */
 function wchs_build_active_scripts( array $site_settings ): array {
 	$registry = \WCHS\Admin\AdminPage::get_script_registry();
@@ -907,7 +907,15 @@ function wchs_build_active_scripts( array $site_settings ): array {
 				$query[ $k ] = $params[ $k ];
 			}
 		}
-		$src = add_query_arg( $query, $entry['src_template'] );
+		$inline_only = ! empty( $entry['inline_only'] );
+		$inline      = isset( $entry['inline'] ) && is_string( $entry['inline'] ) ? $entry['inline'] : '';
+		$src         = $inline_only ? '' : esc_url_raw( add_query_arg( $query, $entry['src_template'] ) );
+		if ( $inline_only && $inline === '' ) {
+			continue;
+		}
+		if ( ! $inline_only && $src === '' ) {
+			continue;
+		}
 
 		$allowed_categories = [ 'analytics', 'pixel', 'marketing', 'consent', 'chat', 'other' ];
 		$category = ( is_string( $entry['category'] ?? null ) && in_array( $entry['category'], $allowed_categories, true ) )
@@ -916,10 +924,10 @@ function wchs_build_active_scripts( array $site_settings ): array {
 			? strtoupper( substr( $entry['mark'], 0, 3 ) )
 			: strtoupper( substr( (string) ( $entry['name'] ?? $id ), 0, 2 ) );
 
-		$out[] = [
+		$out_row = [
 			'id'        => $id,
 			'name'      => $entry['name'] ?? $id,
-			'src'       => esc_url_raw( $src ),
+			'src'       => $src,
 			'async'     => ! empty( $entry['attributes']['async'] ),
 			'defer'     => ! empty( $entry['attributes']['defer'] ),
 			'placement' => in_array( $entry['placement'] ?? 'head', [ 'head', 'body_end' ], true ) ? $entry['placement'] : 'head',
@@ -930,6 +938,10 @@ function wchs_build_active_scripts( array $site_settings ): array {
 			'category'  => $category,
 			'mark'      => $mark,
 		];
+		if ( $inline !== '' ) {
+			$out_row['inline'] = $inline;
+		}
+		$out[] = $out_row;
 	}
 
 	return $out;

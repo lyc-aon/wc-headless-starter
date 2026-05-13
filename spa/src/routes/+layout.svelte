@@ -276,13 +276,21 @@
 			// inject, idempotent by data-wchs-id.
 			for (const s of config.data.active_scripts ?? []) {
 				if (!s.surfaces?.includes('spa')) continue;
-				if (document.querySelector(`script[data-wchs-id="${s.id}"]`)) continue;
+				const target = s.placement === 'body_end' ? document.body : document.head;
+				const bootId = `${s.id}__boot`;
+				if (s.inline && !document.querySelector(`script[data-wchs-id="${bootId}"]`)) {
+					const boot = document.createElement('script');
+					boot.type = 'text/javascript';
+					boot.dataset.wchsId = bootId;
+					boot.textContent = s.inline;
+					target.appendChild(boot);
+				}
+				if (!s.src || document.querySelector(`script[data-wchs-id="${s.id}"]`)) continue;
 				const el = document.createElement('script');
 				el.src = s.src;
 				el.dataset.wchsId = s.id;
 				if (s.async) el.async = true;
 				if (s.defer) el.defer = true;
-				const target = s.placement === 'body_end' ? document.body : document.head;
 				target.appendChild(el);
 			}
 

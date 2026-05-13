@@ -36,6 +36,11 @@ class AdminPage {
 	 *   category     one of ['analytics','pixel','marketing','consent','chat','other'].
 	 *                Drives the tracker-chip color in the canvas preview.
 	 *   mark         1–3 char display mark for the tracker chip (e.g. 'GTM', 'K', 'CB').
+	 *   inline       OPTIONAL. Admin-curated raw JS executed as an inline script
+	 *                before any external tag for this id (same placement/surfaces).
+	 *   inline_only  OPTIONAL. When true, the resolver omits the external <script src>
+	 *                tag — use when the inline snippet loads its own remote file
+	 *                (e.g. CustomerLabs).
 	 *
 	 * Shop_manager can never edit these fields. They can only set
 	 * wchs_site_settings['active_scripts'][*].enabled + params.
@@ -116,6 +121,21 @@ class AdminPage {
 			'dedicated_setting_key' => '',
 			'category'     => 'consent',
 			'mark'         => 'CB',
+		],
+		[
+			'id'           => 'customerlabs',
+			'name'         => 'CustomerLabs 1PD Ops',
+			'description'  => 'CustomerLabs loader (inline bootstrap + CDN). Replace inline + src_template in REGISTRY_SEEDS with the snippet from your CustomerLabs workspace if this is not your account.',
+			'src_template' => 'https://cdn.js.customerlabs.co/cl852373hycz6u.js',
+			'params'       => [],
+			'attributes'   => [ 'async' => true, 'defer' => false ],
+			'placement'    => 'head',
+			'surfaces'     => [ 'spa', 'wp' ],
+			'dedicated_setting_key' => '',
+			'category'     => 'analytics',
+			'mark'         => 'CL',
+			'inline_only'  => true,
+			'inline'       => '!function(t,e,r,c,a,n,s){t.ClAnalyticsObject=a,t[a]=t[a]||[],t[a].methods=["trackSubmit","trackClick","pageview","identify","track", "trackConsent"],t[a].factory=function(e){return function(){var r=Array.prototype.slice.call(arguments);return r.unshift(e),t[a].push(r),t[a]}};for(var i=0;i<t[a].methods.length;i++){var o=t[a].methods[i];t[a][o]=t[a].factory(o)};n=e.createElement(r),s=e.getElementsByTagName(r)[0],n.async=1,n.crossOrigin="anonymous",n.src=c,s.parentNode.insertBefore(n,s)}(window,document,"script","https://cdn.js.customerlabs.co/cl852373hycz6u.js","_cl");_cl.SNIPPET_VERSION="2.0.0"',
 		],
 	];
 

@@ -246,7 +246,7 @@
 	{:else}
 		<ul class="shop-grid__list" class:is-loading={loading} style="--cols-min: {colsMin}; --cols-max: {colsMax};">
 			{#each products.filter(p => config.data.product_card?.show_oos_cards !== false || p.is_in_stock !== false) as p (p.id)}
-				<li><ProductCard product={p} /></li>
+				<li><ProductCard product={p} listingSource="Shop" /></li>
 			{/each}
 		</ul>
 

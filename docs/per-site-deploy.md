@@ -5,8 +5,11 @@ WooCommerce sites. Target pattern: **one shared codebase, one SPA build,
 N isolated WP installs** - each with its own database, its own brand,
 its own origin.
 
-This matches the deploy model where you push code once and many sites
-update without touching each other's config.
+This matches the runtime model where one codebase can serve many isolated
+sites, but deployment ownership is explicit. The upstream GitHub Actions
+workflow is manual-only. Client-owned forks should use single-site auto-deploy
+workflows with repo-local secrets. Do not auto-deploy unrelated client sites
+from one shared push unless you intentionally own that whole fleet.
 
 ---
 

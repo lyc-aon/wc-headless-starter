@@ -53,6 +53,8 @@ Agents should read these before making code changes:
 - Public docs should not name real sites using this starter.
 - Runtime credentials belong in `.env`, `wp-config.php`, WordPress admin
   settings, or GitHub Actions secrets, never in committed docs.
+- Deployment policy belongs with the owning repo: upstream deploys manually,
+  while client-owned forks may auto-deploy one site with repo-local secrets.
 - If you add an admin setting, update `admin-settings-reference.md`,
   `CLAUDE.md` if the ownership path changes, and the SPA config type when
   the setting is emitted through `/wp-json/wchs/v1/config`.

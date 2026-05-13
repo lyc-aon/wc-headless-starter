@@ -71,16 +71,17 @@ header for smoke checks and as the remote SiteGround webroot folder name.
    `SG_USER_SITE3`, `SG_DOMAIN_SITE3`.
 3. Add a new row to the `matrix.include` list in `deploy.yml` following
    the pattern of the existing rows.
-4. If this site needs to be opt-in-only (not deployed on every push),
-   wrap the deploy steps in a condition based on a new workflow_dispatch
-   input option.
+4. Add the site to the `workflow_dispatch` input options if operators should
+   be able to select it directly from the Actions tab. Keep auto-deploy in a
+   client-owned fork when site ownership is separate.
 
 ### Rollback
 
 There's no one-click rollback. If a deploy lands broken:
 
 1. `git revert <bad-sha>` locally.
-2. `git push` — triggers another deploy with the reverted code.
+2. `git push`.
+3. Run the manual deploy workflow from the Actions tab for the affected site.
 
 Or for urgent reversions, deploy directly from local:
 check out a known-good SHA, populate `.env`, then run

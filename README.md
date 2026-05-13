@@ -5,6 +5,10 @@ on the frontend, WordPress + WooCommerce on the backend. It is built for
 single-origin deployments where Apache serves the SPA and WordPress still
 owns checkout, accounts, admin, and REST.
 
+Deployment ownership: this upstream starter does not auto-deploy on push.
+Run its GitHub Actions deploy manually, or use a client-owned fork with a
+single-site auto-deploy workflow and repo-local secrets.
+
 ---
 
 ## What you get

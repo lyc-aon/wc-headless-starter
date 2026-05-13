@@ -13,6 +13,10 @@ safe when you preserve the workflow's explicit excludes for every
 WP-owned path. A raw `rsync spa/build/ .../public_html/` can flatten the
 site.
 
+CI/CD ownership: the upstream GitHub Actions workflow is manual-only. If a
+site needs push-triggered deploys, use a client-owned fork with one production
+target and repo-local secrets.
+
 After any restore, emergency repair, or suspicious live change, run the
 repo's broader integrity audit:
 

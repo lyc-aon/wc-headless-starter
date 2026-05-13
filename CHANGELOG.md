@@ -4,6 +4,15 @@ All notable public changes are tracked here.
 
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Changed
+
+- Upstream GitHub Actions deploy is manual-only. Push-triggered production
+  deploys belong in client-owned, single-site forks with repo-local secrets.
+- Deployment docs now separate shared runtime code from site-specific deploy
+  ownership and rollback procedure.
+
 ## [1.0.0] - 2026-05-01
 
 ### Added

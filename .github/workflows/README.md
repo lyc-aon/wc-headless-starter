@@ -80,9 +80,8 @@ check out a known-good SHA, populate `.env`, then run
   the site's own 127.0.0.1, bypassing the edge cache. If the smoke
   passes but the public site shows stale content, wait ~30s or hit the
   flush API again.
-- Fail-fast is off in the matrix — if site 1 fails, site 2 still
-  deploys. This is intentional (one broken SSH key shouldn't block the
-  other site).
+- There is no deploy matrix in this fork. A failed workflow means the Alyve
+  deploy did not complete.
 - The lint step doesn't fail the deploy on PHP syntax errors (it's
   grep-guarded). If you care, tighten it after first green run.
 - Never treat "SPA goes to the webroot" as permission to overwrite the

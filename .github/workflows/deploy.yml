@@ -1,22 +1,15 @@
 name: Deploy to SiteGround
 
-# Canonical CD pipeline. Triggers on push to `main` (skips doc-only
-# changes) or manually via Actions tab. Builds the SPA once, then
-# rsyncs mu-plugins + build output to each configured site in parallel.
+# Manual upstream deploy pipeline. The canonical starter no longer
+# deploys on push; client-owned forks should carry their own
+# single-target auto-deploy workflows.
+# Builds the SPA once, then rsyncs mu-plugins + build output to the
+# selected configured SiteGround site(s).
 #
-# Opt out per-push: include `[skip deploy]` in commit message.
 # Secrets live in repo settings - see .github/workflows/README.md
 # or ask: gh secret list.
 
 on:
-  push:
-    branches: [main]
-    # Skip deploy when only docs / markdown changed. Runs any time
-    # PHP, SPA, or toolkit files change.
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/**'
   workflow_dispatch:
     inputs:
       sites:
@@ -33,20 +26,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  skip-check:
-    runs-on: ubuntu-latest
-    # The whole check happens in the expression engine so multi-line commit
-    # bodies with quotes / backticks never reach a bash parser. Output is
-    # the string 'true' or 'false'; downstream jobs gate on `!= 'true'`.
-    # workflow_dispatch has no head_commit so contains() returns false → never skipped.
-    outputs:
-      skip: ${{ contains(github.event.head_commit.message, '[skip deploy]') }}
-    steps:
-      - run: echo "Skip = ${{ contains(github.event.head_commit.message, '[skip deploy]') }}"
-
   build:
-    needs: skip-check
-    if: needs.skip-check.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

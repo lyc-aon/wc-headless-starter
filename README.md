@@ -93,9 +93,10 @@ runbook).
 ### Update a deployed site
 
 Primary path: configure the GitHub Actions secrets documented in
-[`.github/workflows/README.md`](.github/workflows/README.md), then push to
-`main`. The workflow builds from the repository checkout and deploys with
-guarded rsync excludes. Do not build or sync from the live webroot.
+[`.github/workflows/README.md`](.github/workflows/README.md), then run the
+manual deploy workflow from the Actions tab. Client-owned forks can enable
+their own single-site auto-deploy workflow. Do not build or sync from the live
+webroot.
 
 Manual path from a generated site folder:
 

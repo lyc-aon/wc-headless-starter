@@ -94,8 +94,9 @@ runbook).
 
 Primary path: configure the GitHub Actions secrets documented in
 [`.github/workflows/README.md`](.github/workflows/README.md), then push to
-`main`. The workflow builds from the repository checkout and deploys with
-guarded rsync excludes. Do not build or sync from the live webroot.
+`main`. This fork's workflow builds from the repository checkout and deploys
+to Alyve only, with guarded rsync excludes. Do not build or sync from the live
+webroot.
 
 Manual path from a generated site folder:
 

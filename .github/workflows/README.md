@@ -67,7 +67,8 @@ fork or workflow with its own single-target secrets.
 There's no one-click rollback. If a deploy lands broken:
 
 1. `git revert <bad-sha>` locally.
-2. `git push` — triggers another deploy with the reverted code.
+2. `git push`.
+3. Run the manual deploy workflow from the Actions tab for the affected site.
 
 Or for urgent reversions, deploy directly from local:
 check out a known-good SHA, populate `.env`, then run

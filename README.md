@@ -5,10 +5,9 @@ on the frontend, WordPress + WooCommerce on the backend. It is built for
 single-origin deployments where Apache serves the SPA and WordPress still
 owns checkout, accounts, admin, and REST.
 
-This fork is the Alyve production deployment fork. Pushes to `main` deploy
-`alyvepeptides.com` only through the fork-local Alyve SiteGround secrets.
-Shared starter changes should still flow from `lyc-aon/wc-headless-starter`
-when they are not Alyve-specific.
+Deployment ownership: this upstream starter does not auto-deploy on push.
+Run its GitHub Actions deploy manually, or use a client-owned fork with a
+single-site auto-deploy workflow and repo-local secrets.
 
 ---
 

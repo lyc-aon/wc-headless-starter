@@ -27,8 +27,6 @@ jobs:
       - run: echo "Skip = ${{ contains(github.event.head_commit.message, '[skip deploy]') }}"
 
   build:
-    needs: skip-check
-    if: needs.skip-check.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -24,9 +24,10 @@ and returns the config payload that drives the SPA.
 - **Single-origin.** SPA and WP live at the same domain via `.htaccess`
   fallback (SPA) + `/wp-*` passthroughs (WP). Dev uses Vite proxy to fake
   same-origin locally.
-- **Deploy auto-runs Alyve only on push to main via GitHub Actions** (`.github/workflows/deploy.yml`).
-  The workflow deploys to `alyvepeptides.com` via guarded rsync + SSH.
-  Doc-only and workflow-only pushes skip. Manual override:
+- **Deploy from upstream is manual via GitHub Actions** (`.github/workflows/deploy.yml`).
+  Client-owned forks can carry their own single-site auto-deploy workflows.
+  The upstream workflow deploys to the selected sites configured in repository
+  secrets via guarded rsync + SSH. Manual override:
   `bin/templates/deploy-siteground.sh` for ad-hoc cases,
   `purge-and-rebuild.sh` for incremental updates. Never build or rsync
   from the live webroot.
@@ -149,7 +150,7 @@ Touches 5 files:
 5. (Optional) `docs/admin-settings-reference.md`:
    - Add a row to the relevant tab's table
 
-Deploy: push deployable code to `main` for the normal Alyve-only GitHub Actions path, or run `./scripts/purge-and-rebuild.sh` from a generated site folder for a manual hotfix.
+Deploy: run the GitHub Actions workflow manually for upstream deployments, or run `./scripts/purge-and-rebuild.sh` from a generated site folder for a manual hotfix.
 
 ### Add a new REST endpoint — e.g. `GET /wchs/v1/shipping-zones`
 

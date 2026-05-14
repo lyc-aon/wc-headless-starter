@@ -307,6 +307,7 @@ class CartStore {
 					name: added.name,
 					price: added.prices.price,
 					currency_minor_unit: added.prices.currency_minor_unit,
+					currency_code: added.prices.currency_code,
 					quantity,
 					permalink: (added as { permalink?: string }).permalink,
 					image: added.images?.[0]?.src,
@@ -367,6 +368,11 @@ class CartStore {
 		if (!/\?cart=/.test(href)) {
 			await primeSession().catch(() => {});
 			href = this.checkoutUrl();
+		}
+
+		if (/\?cart=/.test(href) && this.cart?.items?.length && typeof window !== 'undefined') {
+			const { trackCustomerLabsCheckoutMade } = await import('$lib/analytics');
+			trackCustomerLabsCheckoutMade(this.cart!);
 		}
 
 		return /\?cart=/.test(href) ? href : this.cartEntryUrl();

@@ -72,13 +72,24 @@ add_action( 'woocommerce_blocks_loaded', function () {
 } );
 
 /**
- * Resolve a product's tier rules regardless of free/premium tier. Returns
- * an array { type, rules_by_qty } where type is 'fixed' | 'percentage' | null
- * and rules_by_qty is [ qty => unit_price_in_minor_units ] for fixed, or
- * [ qty => pct ] for percentage.
+ * Site-wide Buy-N-Get-N-Free defaults (50% effective per unit when cart qty is 2N).
  */
-function wchs_cro_get_tier_rules( \WC_Product $product ): array {
-	// For variations, tier rules live on the parent product.
+function wchs_cro_bogo_settings(): array {
+	$bogo = [];
+	if ( class_exists( '\WCHS\Admin\AdminPage' ) ) {
+		$pdp  = \WCHS\Admin\AdminPage::get_pdp_config();
+		$bogo = is_array( $pdp['bundle_bogo'] ?? null ) ? $pdp['bundle_bogo'] : [];
+	}
+	return [
+		'enabled'     => ! array_key_exists( 'enabled', $bogo ) || ! empty( $bogo['enabled'] ),
+		'savings_pct' => (float) ( $bogo['savings_pct'] ?? 50 ),
+	];
+}
+
+/**
+ * Tier rules saved on the product in WooCommerce admin.
+ */
+function wchs_cro_get_native_tier_rules( \WC_Product $product ): array {
 	$id = $product->get_parent_id() ?: $product->get_id();
 
 	$type = get_post_meta( $id, '_tiered_price_rules_type', true );
@@ -87,14 +98,11 @@ function wchs_cro_get_tier_rules( \WC_Product $product ): array {
 	}
 
 	$meta_key = $type === 'fixed' ? '_fixed_price_rules' : '_percentage_price_rules';
-	$raw = (array) get_post_meta( $id, $meta_key, true );
+	$raw      = (array) get_post_meta( $id, $meta_key, true );
 	if ( empty( $raw ) ) {
 		return [ 'type' => null, 'rules' => [] ];
 	}
 
-	// Normalize: keys are min-qty ints, values are floats. For percentage
-	// values we convert to int percentage. For fixed we convert to minor
-	// units (cents) via WC helper.
 	$rules = [];
 	foreach ( $raw as $qty => $val ) {
 		$qty_int = (int) $qty;
@@ -106,6 +114,47 @@ function wchs_cro_get_tier_rules( \WC_Product $product ): array {
 	ksort( $rules );
 
 	return [ 'type' => $type, 'rules' => $rules ];
+}
+
+/**
+ * Resolve a product's tier rules. Falls back to BOGO percentage at qty 2+ when
+ * the product has no native tiers and site BOGO bundles are enabled.
+ */
+function wchs_cro_get_tier_rules( \WC_Product $product ): array {
+	$native = wchs_cro_get_native_tier_rules( $product );
+	if ( ! empty( $native['rules'] ) ) {
+		return $native;
+	}
+	$bogo = wchs_cro_bogo_settings();
+	if ( ! $bogo['enabled'] ) {
+		return [ 'type' => null, 'rules' => [] ];
+	}
+	return [
+		'type'  => 'percentage',
+		'rules' => [ 2 => $bogo['savings_pct'] ],
+	];
+}
+
+/**
+ * Buy 1/2/3 Get 1/2/3 Free rows for PDP + cart (pay for N, receive 2N at 50% per unit).
+ *
+ * @return list<array<string, int|float>>
+ */
+function wchs_cro_build_bogo_bundle_rows( int $regular_minor, float $savings_pct ): array {
+	$pct        = max( 0, min( 100, $savings_pct ) );
+	$unit_minor = (int) round( $regular_minor * ( 1 - $pct / 100 ) );
+	$rows       = [];
+	foreach ( [ 1, 2, 3 ] as $paid ) {
+		$min_qty = $paid * 2;
+		$rows[]  = [
+			'min_qty'               => $min_qty,
+			'unit_price'            => $unit_minor,
+			'savings_per_unit'      => max( 0, $regular_minor - $unit_minor ),
+			'savings_pct'           => $pct,
+			'line_total_at_min_qty' => $paid * $regular_minor,
+		];
+	}
+	return $rows;
 }
 
 /**
@@ -147,23 +196,23 @@ function wchs_cro_unit_price_for_qty(
  * All monetary fields are integer minor units.
  */
 function wchs_cro_build_tier_rows( \WC_Product $product ): array {
-	$rules_data = wchs_cro_get_tier_rules( $product );
-	if ( empty( $rules_data['rules'] ) ) {
-		return [];
-	}
-
-	$minor = pow( 10, (int) wc_get_price_decimals() );
+	$minor         = pow( 10, (int) wc_get_price_decimals() );
 	$regular_major = (float) $product->get_regular_price();
 	$regular_minor = (int) round( $regular_major * $minor );
 
+	$native = wchs_cro_get_native_tier_rules( $product );
+	if ( empty( $native['rules'] ) ) {
+		if ( $regular_minor > 0 && wchs_cro_bogo_settings()['enabled'] ) {
+			return wchs_cro_build_bogo_bundle_rows( $regular_minor, wchs_cro_bogo_settings()['savings_pct'] );
+		}
+		return [];
+	}
+
 	$rows = [];
-	foreach ( $rules_data['rules'] as $min_qty => $val ) {
-		$unit_minor = wchs_cro_unit_price_for_qty( $product, $min_qty, $rules_data );
+	foreach ( $native['rules'] as $min_qty => $val ) {
+		$unit_minor             = wchs_cro_unit_price_for_qty( $product, $min_qty, $native );
 		$savings_per_unit_minor = max( 0, $regular_minor - $unit_minor );
-		// For percentage tiers, the raw value IS the savings percentage —
-		// doesn't depend on the base price, so it's correct even on parent
-		// variable products where regular_price is 0.
-		if ( $rules_data['type'] === 'percentage' ) {
+		if ( $native['type'] === 'percentage' ) {
 			$savings_pct = round( (float) $val, 1 );
 		} else {
 			$savings_pct = $regular_minor > 0
@@ -171,14 +220,62 @@ function wchs_cro_build_tier_rows( \WC_Product $product ): array {
 				: 0;
 		}
 		$rows[] = [
-			'min_qty'              => (int) $min_qty,
-			'unit_price'           => $unit_minor,
-			'savings_per_unit'     => $savings_per_unit_minor,
-			'savings_pct'          => $savings_pct,
+			'min_qty'               => (int) $min_qty,
+			'unit_price'            => $unit_minor,
+			'savings_per_unit'      => $savings_per_unit_minor,
+			'savings_pct'           => $savings_pct,
 			'line_total_at_min_qty' => $unit_minor * (int) $min_qty,
 		];
 	}
 	return $rows;
+}
+
+/**
+ * Read COA post meta, falling back to the parent product for variations.
+ */
+function wchs_cro_coa_meta( int $product_id, string $key, int $parent_id = 0 ): string {
+	$val = (string) get_post_meta( $product_id, $key, true );
+	if ( $val !== '' ) {
+		return $val;
+	}
+	if ( $parent_id > 0 ) {
+		return (string) get_post_meta( $parent_id, $key, true );
+	}
+	return '';
+}
+
+/**
+ * @return list<array{label: string, value: string}>
+ */
+function wchs_cro_coa_metrics( int $product_id, int $parent_id = 0 ): array {
+	foreach ( [ $product_id, $parent_id ] as $pid ) {
+		if ( $pid <= 0 ) {
+			continue;
+		}
+		$raw = get_post_meta( $pid, '_wchs_coa_metrics', true );
+		if ( ! is_string( $raw ) || $raw === '' ) {
+			continue;
+		}
+		$decoded = json_decode( $raw, true );
+		if ( ! is_array( $decoded ) ) {
+			continue;
+		}
+		$rows = [];
+		foreach ( $decoded as $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+			$label = isset( $row['label'] ) ? sanitize_text_field( (string) $row['label'] ) : '';
+			$value = isset( $row['value'] ) ? sanitize_text_field( (string) $row['value'] ) : '';
+			if ( $label !== '' && $value !== '' ) {
+				$rows[] = [ 'label' => $label, 'value' => $value ];
+			}
+		}
+		if ( $rows ) {
+			return $rows;
+		}
+	}
+	return [];
 }
 
 function wchs_cro_product_data( $product ) {
@@ -188,11 +285,23 @@ function wchs_cro_product_data( $product ) {
 	$minor = pow( 10, (int) wc_get_price_decimals() );
 	$regular_major = (float) $product->get_regular_price();
 
+	$product_id = (int) $product->get_id();
+	$parent_id  = (int) $product->get_parent_id();
+
+	$coa_url = wchs_cro_coa_meta( $product_id, '_wchs_coa_url', $parent_id );
+	if ( $coa_url === '' ) {
+		$coa_url = wchs_cro_coa_meta( $product_id, 'coa_url', $parent_id );
+	}
+
 	return [
 		'regular_price'  => (int) round( $regular_major * $minor ),
 		'tier_type'      => wchs_cro_get_tier_rules( $product )['type'],
 		'tiers'          => wchs_cro_build_tier_rows( $product ),
 		'cross_sell_ids' => array_values( array_map( 'intval', (array) $product->get_cross_sell_ids() ) ),
+		'coa_url'        => $coa_url ? esc_url_raw( $coa_url ) : '',
+		'coa_batch'      => wchs_cro_coa_meta( $product_id, '_wchs_coa_batch', $parent_id ),
+		'coa_lab'        => wchs_cro_coa_meta( $product_id, '_wchs_coa_lab', $parent_id ),
+		'coa_metrics'    => wchs_cro_coa_metrics( $product_id, $parent_id ),
 	];
 }
 
@@ -232,6 +341,37 @@ function wchs_cro_product_schema() {
 			'context'     => [ 'view', 'edit' ],
 			'readonly'    => true,
 			'items'       => [ 'type' => 'integer' ],
+		],
+		'coa_url' => [
+			'description' => 'Certificate of analysis download URL for this product.',
+			'type'        => 'string',
+			'context'     => [ 'view', 'edit' ],
+			'readonly'    => true,
+		],
+		'coa_batch' => [
+			'description' => 'COA batch identifier.',
+			'type'        => 'string',
+			'context'     => [ 'view', 'edit' ],
+			'readonly'    => true,
+		],
+		'coa_lab' => [
+			'description' => 'COA testing laboratory name.',
+			'type'        => 'string',
+			'context'     => [ 'view', 'edit' ],
+			'readonly'    => true,
+		],
+		'coa_metrics' => [
+			'description' => 'COA result rows for the PDP transparency card.',
+			'type'        => 'array',
+			'context'     => [ 'view', 'edit' ],
+			'readonly'    => true,
+			'items'       => [
+				'type'       => 'object',
+				'properties' => [
+					'label' => [ 'type' => 'string' ],
+					'value' => [ 'type' => 'string' ],
+				],
+			],
 		],
 	];
 }

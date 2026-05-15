@@ -27,11 +27,17 @@ export type WchsCroTierRow = {
 	line_total_at_min_qty: number;
 };
 
+export type WchsCoaMetric = { label: string; value: string };
+
 export type WchsCroProduct = {
 	regular_price: number;
 	tier_type: 'fixed' | 'percentage' | null;
 	tiers: WchsCroTierRow[];
 	cross_sell_ids: number[];
+	coa_url?: string;
+	coa_batch?: string;
+	coa_lab?: string;
+	coa_metrics?: WchsCoaMetric[];
 };
 
 export type StoreProductCategory = { id: number; name: string; slug: string };

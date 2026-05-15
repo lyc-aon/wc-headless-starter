@@ -324,10 +324,48 @@ export type HomepageConfig = {
 	modules: HomepageModule[];
 };
 
+export type PdpFeatureItem = { icon: string; label: string };
+export type PdpTrustBadge = { icon: string; label: string };
+export type PdpCoaMetric = { label: string; value: string };
+
+export type PdpBogoBundleConfig = {
+	enabled?: boolean;
+	savings_pct?: number;
+	presets?: Array<{ paid_qty: number; flag?: string }>;
+};
+
+export type PdpCoaSectionConfig = {
+	enabled?: boolean;
+	eyebrow?: string;
+	title?: string;
+	subtitle?: string;
+	disclaimer?: string;
+	default_batch?: string;
+	default_lab?: string;
+	default_metrics?: PdpCoaMetric[];
+};
+
+export type PdpCrossSellConfig = {
+	eyebrow?: string;
+	title?: string;
+	subtitle?: string;
+	view_all_url?: string;
+};
+
 export type PdpConfig = {
 	show_reviews: boolean;
 	cross_sell_mode: 'simple' | 'complex';
 	modules: HomepageModule[];
+	coa_library_url?: string;
+	cross_sell?: PdpCrossSellConfig;
+	bundle_bogo?: PdpBogoBundleConfig;
+	coa_section?: PdpCoaSectionConfig;
+	verified_label?: string;
+	show_ships_banner?: boolean;
+	show_payment_icons?: boolean;
+	image_disclaimer?: string;
+	features?: PdpFeatureItem[];
+	trust_badges?: PdpTrustBadge[];
 };
 
 export type CustomPage = {
@@ -576,17 +614,65 @@ const DEFAULTS: SiteConfig = {
 		show_reviews: true,
 		cross_sell_mode: 'simple',
 		modules: [],
+		coa_library_url: '',
+		bundle_bogo: {
+			enabled: true,
+			savings_pct: 50,
+			presets: [
+				{ paid_qty: 1, flag: '' },
+				{ paid_qty: 2, flag: 'MOST POPULAR' },
+				{ paid_qty: 3, flag: 'BEST VALUE' },
+			],
+		},
+		cross_sell: {
+			eyebrow: 'FREQUENTLY PAIRED',
+			title: 'Often ordered with',
+			subtitle: 'Researchers commonly add these to their order',
+			view_all_url: '/shop',
+		},
+		coa_section: {
+			enabled: true,
+			eyebrow: 'TRANSPARENCY',
+			title: 'Certificate of Analysis',
+			subtitle: 'Every batch independently verified by third-party laboratories.',
+			disclaimer:
+				'Certificates of Analysis are provided for informational purposes. Results apply to the specific batch tested. Products are sold for research use only.',
+			default_lab: 'Analytical Laboratories Inc.',
+			default_metrics: [
+				{ label: 'HPLC Purity', value: '≥99.4%' },
+				{ label: 'LC-MS Identity', value: 'Confirmed' },
+				{ label: 'Sterility', value: 'PASS' },
+				{ label: 'Contaminants', value: 'ND' },
+				{ label: 'Heavy Metals', value: '<20 ppb' },
+				{ label: 'TAMC / TYMC', value: 'PASS' },
+			],
+		},
+		verified_label: 'VERIFIED',
+		show_ships_banner: true,
+		show_payment_icons: true,
+		image_disclaimer: 'FOR RESEARCH PURPOSES ONLY',
+		features: [
+			{ icon: 'lab', label: 'Manufactured in US' },
+			{ icon: 'zap', label: 'Fastest in Trend' },
+			{ icon: 'shield', label: 'Independently Tested' },
+			{ icon: 'shipping', label: 'Same Day Shipping' },
+		],
+		trust_badges: [
+			{ icon: 'shipping', label: 'Faster shipping' },
+			{ icon: 'shield', label: '60-day guarantee' },
+			{ icon: 'lock', label: 'Secure checkout' },
+		],
 	},
 	shop: { modules: [], cols_min: 2, cols_max: 4, spacing_h: 'normal' },
 	pages: [],
 	footer: { columns: [] },
 	social_links: [],
 	product_card: {
-		media_aspect_ratio: '1:1',
-		corner_radius: 'square',
-		border: 'full',
-		hover_effect: 'lift',
-		button_style: 'outline',
+		media_aspect_ratio: '4:5',
+		corner_radius: 'round',
+		border: 'none',
+		hover_effect: 'shadow',
+		button_style: 'solid',
 		badge_position: 'top-right',
 		badge_style: 'filled',
 		show_bulk_badge: true,

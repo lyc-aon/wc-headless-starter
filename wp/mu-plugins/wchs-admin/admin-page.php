@@ -368,11 +368,11 @@ class AdminPage {
 			'typography_heading_weight'   => 'semibold',   // 'light' | 'regular' | 'medium' | 'semibold' | 'bold' | 'extrabold' | 'black'
 			'typography_body_size'        => 'm',          // 's' (14px) | 'm' (15px) | 'l' (16px)
 			'product_card'                => [
-				'media_aspect_ratio'        => '1:1',         // '1:1' | '4:5' | '3:4' | '16:9'
-				'corner_radius'             => 'square',      // 'square' | 'soft' | 'round' | 'pill'
-				'border'                    => 'full',        // 'full' | 'bottom-only' | 'none' | 'hover-only'
-				'hover_effect'              => 'lift',        // 'lift' | 'shadow' | 'border' | 'none'
-				'button_style'              => 'outline',     // 'outline' | 'solid' | 'icon-only'
+				'media_aspect_ratio'        => '4:5',         // '1:1' | '4:5' | '3:4' | '16:9'
+				'corner_radius'             => 'round',       // 'square' | 'soft' | 'round' | 'pill'
+				'border'                    => 'none',        // 'full' | 'bottom-only' | 'none' | 'hover-only'
+				'hover_effect'              => 'shadow',      // 'lift' | 'shadow' | 'border' | 'none'
+				'button_style'              => 'solid',       // 'outline' | 'solid' | 'icon-only'
 				'badge_position'            => 'top-right',   // 'top-left' | 'top-right' (defaulted to top-right per 2025 CRO research)
 				'badge_style'               => 'filled',      // 'filled' | 'outline' | 'minimal'
 				'show_bulk_badge'           => true,
@@ -447,8 +447,56 @@ class AdminPage {
 
 	public static function get_pdp_config(): array {
 		$defaults = [
-			'show_reviews' => true,
-			'modules'      => [],
+			'show_reviews'        => true,
+			'cross_sell_mode'     => 'simple',
+			'modules'             => [],
+			'coa_library_url'     => '',
+			'verified_label'      => 'VERIFIED',
+			'show_ships_banner'   => true,
+			'show_payment_icons'  => true,
+			'image_disclaimer'    => 'FOR RESEARCH PURPOSES ONLY',
+			'features'            => [
+				[ 'icon' => 'lab', 'label' => 'Manufactured in US' ],
+				[ 'icon' => 'zap', 'label' => 'Fastest in Trend' ],
+				[ 'icon' => 'shield', 'label' => 'Independently Tested' ],
+				[ 'icon' => 'shipping', 'label' => 'Same Day Shipping' ],
+			],
+			'trust_badges'        => [
+				[ 'icon' => 'shipping', 'label' => 'Faster shipping' ],
+				[ 'icon' => 'shield', 'label' => '60-day guarantee' ],
+				[ 'icon' => 'lock', 'label' => 'Secure checkout' ],
+			],
+			'bundle_bogo'         => [
+				'enabled'     => true,
+				'savings_pct' => 50,
+				'presets'     => [
+					[ 'paid_qty' => 1, 'flag' => '' ],
+					[ 'paid_qty' => 2, 'flag' => 'MOST POPULAR' ],
+					[ 'paid_qty' => 3, 'flag' => 'BEST VALUE' ],
+				],
+			],
+			'cross_sell'          => [
+				'eyebrow'      => 'FREQUENTLY PAIRED',
+				'title'        => 'Often ordered with',
+				'subtitle'     => 'Researchers commonly add these to their order',
+				'view_all_url' => '/shop',
+			],
+			'coa_section'         => [
+				'enabled'         => true,
+				'eyebrow'         => 'TRANSPARENCY',
+				'title'           => 'Certificate of Analysis',
+				'subtitle'        => 'Every batch independently verified by third-party laboratories.',
+				'disclaimer'      => 'Certificates of Analysis are provided for informational purposes. Results apply to the specific batch tested. Products are sold for research use only.',
+				'default_lab'     => 'Analytical Laboratories Inc.',
+				'default_metrics' => [
+					[ 'label' => 'HPLC Purity', 'value' => '≥99.4%' ],
+					[ 'label' => 'LC-MS Identity', 'value' => 'Confirmed' ],
+					[ 'label' => 'Sterility', 'value' => 'PASS' ],
+					[ 'label' => 'Contaminants', 'value' => 'ND' ],
+					[ 'label' => 'Heavy Metals', 'value' => '<20 ppb' ],
+					[ 'label' => 'TAMC / TYMC', 'value' => 'PASS' ],
+				],
+			],
 		];
 		$saved = get_option( self::PDP_OPTION, [] );
 		if ( ! is_array( $saved ) || empty( $saved ) ) {
@@ -2284,8 +2332,8 @@ class AdminPage {
 			<?php
 			$pc = array_merge(
 				[
-					'media_aspect_ratio' => '1:1', 'corner_radius' => 'square', 'border' => 'full',
-					'hover_effect' => 'lift', 'button_style' => 'outline',
+					'media_aspect_ratio' => '4:5', 'corner_radius' => 'round', 'border' => 'none',
+					'hover_effect' => 'shadow', 'button_style' => 'solid',
 					'badge_position' => 'top-right', 'badge_style' => 'filled',
 					'show_bulk_badge' => true, 'show_tier_hint' => true, 'show_oos_cards' => true,
 					'oos_treatment' => 'grayscale', 'title_lines' => 'auto',

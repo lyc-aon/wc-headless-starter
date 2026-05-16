@@ -57,7 +57,7 @@ function wchs_enrich_split_value_module_images( array $mods ): array {
 			$fallback = [ 'src' => '', 'alt' => '' ];
 			$uploads  = wp_upload_dir();
 			if ( empty( $uploads['error'] ) ) {
-				$rel = '2026/05/WhatsApp-Image-2026-05-16-at-6.42.45-AM.jpeg';
+				$rel = '2026/05/e33abf7d-1bcf-42ea-b324-c777cec4006d.webp';
 				$abs = trailingslashit( $uploads['basedir'] ) . $rel;
 				if ( file_exists( $abs ) ) {
 					$fallback = [

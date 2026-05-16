@@ -1,6 +1,10 @@
 <script lang="ts">
 	import { config } from '$lib/config.svelte';
-	import { resolveCoaDownloadUrl } from '$lib/wc/coa';
+	import {
+		coaDownloadFilename,
+		downloadCoaFile,
+		resolveCoaDownloadUrl,
+	} from '$lib/wc/coa';
 	import type { StoreProduct, WchsCoaMetric, WchsCroProduct } from '$lib/wc/products';
 
 	let {
@@ -35,6 +39,31 @@
 		if (rows?.length) return rows;
 		return section?.default_metrics ?? [];
 	});
+
+	const downloadFilename = $derived(
+		coaDownloadFilename(product.slug, batch, downloadUrl || undefined)
+	);
+
+	let downloading = $state(false);
+
+	async function onCoaDownload(e: MouseEvent) {
+		e.preventDefault();
+		if (!downloadUrl || downloading) return;
+		downloading = true;
+		try {
+			await downloadCoaFile(downloadUrl, downloadFilename);
+		} catch {
+			const anchor = document.createElement('a');
+			anchor.href = downloadUrl;
+			anchor.download = downloadFilename;
+			anchor.rel = 'noopener';
+			document.body.appendChild(anchor);
+			anchor.click();
+			anchor.remove();
+		} finally {
+			downloading = false;
+		}
+	}
 </script>
 
 {#if enabled}
@@ -81,11 +110,17 @@
 
 				<div class="pdp-coa__actions">
 					{#if downloadUrl}
-						<a class="pdp-coa__download" href={downloadUrl} target="_blank" rel="noopener noreferrer">
+						<a
+							class="pdp-coa__download"
+							href={downloadUrl}
+							download={downloadFilename}
+							aria-busy={downloading}
+							onclick={onCoaDownload}
+						>
 							<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
 								<path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/>
 							</svg>
-							Download COA
+							{downloading ? 'Downloading…' : 'Download COA'}
 						</a>
 					{:else}
 						<button type="button" class="pdp-coa__download pdp-coa__download--pending" disabled>

@@ -179,6 +179,7 @@
 		category_grid: 'Category Grid', 		split_features: 'Split Features',
 		split_value: 'Value split (BOGO)',
 		feature_highlights: 'Feature highlights',
+		order_handling: 'Order handling',
 		cta: 'CTA button', spacer: 'Spacer', logo_strip: 'Logo strip',
 		video: 'Video / embed'
 	};
@@ -189,6 +190,7 @@
 		shop_grid: 'commerce', category_grid: 'commerce',
 		accordion: 'content', text_block: 'content', gallery: 'content',
 		split_features: 'content', split_value: 'commerce', feature_highlights: 'content',
+		order_handling: 'content',
 		cta: 'content', spacer: 'content',
 		video: 'content',
 		contact_form: 'engagement'
@@ -203,6 +205,7 @@
 		split_features: ['homepage','shop','pdp','pages'],
 		split_value: ['homepage','shop','pdp','pages'],
 		feature_highlights: ['homepage','shop','pdp','pages'],
+		order_handling: ['homepage','shop','pdp','pages'],
 		product_slider: ['homepage','shop','pdp','pages'],
 		review_slider: ['homepage','shop','pdp','pages'],
 		text_block: ['homepage','shop','pdp','pages'],
@@ -309,6 +312,25 @@
 				],
 				cta_label: 'Buy 1 Get 1 Free',
 				cta_href: '/shop',
+			};
+		}
+		if (type === 'order_handling') {
+			return {
+				badge_text: 'Our Process',
+				headline: 'How Every Order Is Handled',
+				subheadline: 'From verification to delivery, we ensure each step meets our highest standards.',
+				steps: [
+					{ variant: 'verified', headline: 'Verified Batches', description: 'Every batch undergoes rigorous quality control and verification before release.' },
+					{ variant: 'lab', headline: '3rd Party Testing', description: 'Independent laboratory testing ensures purity and consistency you can trust.' },
+					{ variant: 'shipping', headline: 'Ships Same Day', description: 'Discreetly packaged and dispatched within 24 hours from our U.S. facility.' },
+					{ variant: 'support', headline: '24/7 Support', description: 'Round-the-clock customer service for any questions before or after your order.' },
+				],
+				metrics_title: 'Quality Metrics',
+				metrics: [
+					{ value: '99.8%', label: 'Batch Accuracy' },
+					{ value: '100%', label: 'Verified Testing' },
+					{ value: '24/7', label: 'Support Response' },
+				],
 			};
 		}
 		if (type === 'split_features') {
@@ -1106,6 +1128,20 @@
 					if (inputs[1]) inputs[1].value = item.description || '';
 				});
 				break;
+			case 'order_handling':
+				setVal(container, '[data-field="oh_badge_text"]', cfg.badge_text || '');
+				setVal(container, '[data-field="oh_headline"]', cfg.headline || '');
+				setVal(container, '[data-field="oh_subheadline"]', cfg.subheadline || '');
+				setVal(container, '[data-field="oh_metrics_title"]', cfg.metrics_title || '');
+				populateRepeaterItems(container, '.wchs-oh-steps', cfg.steps || [], function (item, el) {
+					var sel = el.querySelector('[data-field="oh_step_variant"]');
+					if (sel) sel.value = item.variant || 'verified';
+					var inputs = el.querySelectorAll('input[type="text"]');
+					if (inputs[0]) inputs[0].value = item.headline || '';
+					if (inputs[1]) inputs[1].value = item.description || '';
+				});
+				populateOhMetrics(container, cfg.metrics || []);
+				break;
 			case 'cta':
 				setVal(container, '[data-field="cta_label"]', cfg.label || '');
 				setVal(container, '[data-field="cta_href"]', cfg.href || '');
@@ -1314,6 +1350,15 @@
 				cfg.items = readFhItems(container);
 				delete cfg.title;
 				break;
+			case 'order_handling':
+				cfg.badge_text = getVal(container, '[data-field="oh_badge_text"]') || '';
+				cfg.headline = getVal(container, '[data-field="oh_headline"]') || '';
+				cfg.subheadline = getVal(container, '[data-field="oh_subheadline"]') || '';
+				cfg.metrics_title = getVal(container, '[data-field="oh_metrics_title"]') || '';
+				cfg.steps = readOhSteps(container);
+				cfg.metrics = readOhMetrics(container);
+				delete cfg.title;
+				break;
 			case 'cta':
 				cfg.label = getVal(container, '[data-field="cta_label"]') || '';
 				cfg.href = getVal(container, '[data-field="cta_href"]') || '';
@@ -1411,6 +1456,33 @@
 				variant: variant,
 				headline: inputs[0] ? inputs[0].value : '',
 				description: inputs[1] ? inputs[1].value : '',
+			});
+		});
+		return items;
+	}
+
+	function readOhSteps(ctx) {
+		var items = [];
+		ctx.querySelectorAll('.wchs-oh-steps .wchs-accordion-item').forEach(function (el) {
+			var sel = el.querySelector('[data-field="oh_step_variant"]');
+			var variant = sel ? sel.value : 'verified';
+			var inputs = el.querySelectorAll('input[type="text"]');
+			items.push({
+				variant: variant,
+				headline: inputs[0] ? inputs[0].value : '',
+				description: inputs[1] ? inputs[1].value : '',
+			});
+		});
+		return items;
+	}
+
+	function readOhMetrics(ctx) {
+		var items = [];
+		ctx.querySelectorAll('.wchs-oh-metrics .wchs-accordion-item').forEach(function (el) {
+			var inputs = el.querySelectorAll('input[type="text"]');
+			items.push({
+				value: inputs[0] ? inputs[0].value : '',
+				label: inputs[1] ? inputs[1].value : '',
 			});
 		});
 		return items;
@@ -1688,6 +1760,24 @@
 
 	function populateSvStats(ctx, items) {
 		var container = ctx.querySelector('.wchs-sv-stats');
+		if (!container) return;
+		var tpl = container.querySelector('.wchs-accordion-item');
+		if (!tpl) return;
+		var tplHtml = tpl.outerHTML;
+		container.innerHTML = '';
+		(items.length ? items : [{ value: '', label: '' }]).forEach(function (item) {
+			var div = document.createElement('div');
+			div.innerHTML = tplHtml;
+			var el = div.firstElementChild;
+			var inputs = el.querySelectorAll('input[type="text"]');
+			if (inputs[0]) inputs[0].value = item.value || '';
+			if (inputs[1]) inputs[1].value = item.label || '';
+			container.appendChild(el);
+		});
+	}
+
+	function populateOhMetrics(ctx, items) {
+		var container = ctx.querySelector('.wchs-oh-metrics');
 		if (!container) return;
 		var tpl = container.querySelector('.wchs-accordion-item');
 		if (!tpl) return;
@@ -2073,6 +2163,32 @@
 			if (fhSel) fhSel.value = 'pin';
 			fhEl.querySelectorAll('input[type="text"]').forEach(function (inp) { inp.value = ''; });
 			fhWrap.appendChild(fhEl);
+		}
+		var addOhStepModal = e.target.closest('.wchs-add-oh-step-modal');
+		if (addOhStepModal) {
+			var ohWrap = addOhStepModal.previousElementSibling;
+			if (!ohWrap || !ohWrap.classList.contains('wchs-oh-steps')) return;
+			var ohTpl = ohWrap.querySelector('.wchs-accordion-item');
+			if (!ohTpl) return;
+			var ohDiv = document.createElement('div');
+			ohDiv.innerHTML = ohTpl.outerHTML;
+			var ohEl = ohDiv.firstElementChild;
+			var ohSel = ohEl.querySelector('[data-field="oh_step_variant"]');
+			if (ohSel) ohSel.value = 'verified';
+			ohEl.querySelectorAll('input[type="text"]').forEach(function (inp) { inp.value = ''; });
+			ohWrap.appendChild(ohEl);
+		}
+		var addOhMetricModal = e.target.closest('.wchs-add-oh-metric-modal');
+		if (addOhMetricModal) {
+			var ohMetWrap = addOhMetricModal.previousElementSibling;
+			if (!ohMetWrap || !ohMetWrap.classList.contains('wchs-oh-metrics')) return;
+			var ohMetTpl = ohMetWrap.querySelector('.wchs-accordion-item');
+			if (!ohMetTpl) return;
+			var ohMetDiv = document.createElement('div');
+			ohMetDiv.innerHTML = ohMetTpl.outerHTML;
+			var ohMetEl = ohMetDiv.firstElementChild;
+			ohMetEl.querySelectorAll('input[type="text"]').forEach(function (inp) { inp.value = ''; });
+			ohMetWrap.appendChild(ohMetEl);
 		}
 		var addTbCompareModal = e.target.closest('.wchs-add-tb-compare-row-modal');
 		if (addTbCompareModal) {
@@ -3693,6 +3809,14 @@
 		var xsellEl = document.querySelector('[name="cross_sell_mode"]:checked')
 			|| document.querySelector('[name="cross_sell_mode"]');
 		if (xsellEl) pdp.cross_sell_mode = xsellEl.value;
+		var excludeEl = document.querySelector('[name="slide_cart_cross_sell_exclude_ids"]');
+		if (excludeEl) {
+			pdp.slide_cart = pdp.slide_cart || {};
+			pdp.slide_cart.cross_sell_exclude_product_ids = (excludeEl.value || '')
+				.split(',')
+				.map(Number)
+				.filter(Boolean);
+		}
 		var modulesInput = document.querySelector('[name="modules_json"]');
 		var modules = [];
 		if (modulesInput) {

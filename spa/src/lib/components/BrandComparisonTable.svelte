@@ -50,7 +50,7 @@
 >
 	<header class="compare__head" class:is-centered={center_header}>
 		{#if eyebrow}
-			<p class="compare__eyebrow wchs-section-heading">{eyebrow}</p>
+			<h2 class="compare__eyebrow wchs-section-heading">{eyebrow}</h2>
 		{/if}
 		{#if title}
 			<h2 class="compare__title">{title}</h2>
@@ -171,8 +171,8 @@
 		--compare-accent: var(--accent);
 		--compare-row-py: 24px;
 		--compare-head-py: 30px;
-		--mod-pt: 64px;
-		--mod-pb: 76px;
+		--mod-pt: var(--wchs-spacing-v-normal, 48px);
+		--mod-pb: var(--wchs-spacing-v-normal, 56px);
 		--mod-px: 24px;
 		--mod-max-w: 1040px;
 		max-width: var(--mod-max-w);
@@ -217,16 +217,10 @@
 		margin-right: auto;
 	}
 	.compare__eyebrow.wchs-section-heading {
-		margin: 0 0 16px;
-		text-transform: uppercase;
-		letter-spacing: 0.1em;
-		font-size: clamp(1.05rem, 2.35vw, 1.4rem);
-		font-weight: 700;
-		line-height: 1.25;
-		color: var(--fg-strong);
+		margin: 0 0 20px;
 	}
 	.compare__head.is-centered .compare__eyebrow.wchs-section-heading {
-		margin-bottom: 18px;
+		margin-bottom: 22px;
 	}
 	.compare__title {
 		margin: 0 0 20px;

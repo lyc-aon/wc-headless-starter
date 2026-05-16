@@ -58,7 +58,7 @@
 {:else if !loading && products.length > 0}
 	<section class="homepage-module" class:is-v-compact={spacing_v === 'compact'} class:is-v-spacious={spacing_v === 'spacious'} class:is-h-compact={spacing_h === 'compact'} class:is-h-spacious={spacing_h === 'spacious'} id={config.title?.toLowerCase().replace(/\s+/g, '-')}>
 		<div class="homepage-module__head" class:is-centered={center_header}>
-			<p class="homepage-module__label wchs-section-heading">{config.title || 'Products'}</p>
+			<h2 class="homepage-module__label wchs-section-heading">{config.title || 'Products'}</h2>
 			{#if !center_header}
 				<a class="homepage-module__more" href={title_link}>All products →</a>
 			{/if}
@@ -69,23 +69,30 @@
 
 <style>
 	.homepage-module {
-		--mod-pt: 27px;
-		--mod-pb: 8px;
+		--mod-pt: var(--wchs-spacing-v-normal, 48px);
+		--mod-pb: var(--wchs-spacing-v-normal, 48px);
 		--mod-px: 24px;
 		--mod-max-w: 1440px;
 		max-width: var(--mod-max-w);
 		margin: 0 auto;
 		padding: var(--mod-pt) var(--mod-px) var(--mod-pb);
 	}
-	.homepage-module.is-v-compact  { --mod-pt: 12px; --mod-pb: 12px; }
-	.homepage-module.is-v-spacious { --mod-pt: 56px; --mod-pb: 64px; }
+	.homepage-module.is-v-compact {
+		--mod-pt: var(--wchs-spacing-v-compact, 20px);
+		--mod-pb: var(--wchs-spacing-v-compact, 24px);
+	}
+	.homepage-module.is-v-spacious {
+		--mod-pt: var(--wchs-spacing-v-spacious, 72px);
+		--mod-pb: var(--wchs-spacing-v-spacious, 80px);
+	}
 	.homepage-module.is-h-compact  { --mod-max-w: 100%; --mod-px: 12px; }
 	.homepage-module.is-h-spacious { --mod-max-w: 760px; --mod-px: 40px; }
 
 	.homepage-module__head {
 		display: flex;
-		align-items: baseline;
+		align-items: center;
 		justify-content: space-between;
+		gap: 16px;
 		padding: 0 0 22px;
 	}
 	.homepage-module__head.is-centered {

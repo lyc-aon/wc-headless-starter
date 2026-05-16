@@ -217,6 +217,14 @@ export function isModuleVisibleNow(mod: { start_at?: string; end_at?: string }):
 	return true;
 }
 
+/** Set `true` to show homepage BOGO / split_value promo again (WP config is unchanged). */
+export const HOMEPAGE_SPLIT_VALUE_ENABLED = false;
+
+export function isHomepageModuleShown(mod: HomepageModule): boolean {
+	if (!HOMEPAGE_SPLIT_VALUE_ENABLED && mod.type === 'split_value') return false;
+	return true;
+}
+
 export type TrustBarItem = {
 	icon: string;
 	headline: string;
@@ -323,6 +331,23 @@ export type FeatureHighlightsModuleConfig = {
 	cta_href: string;
 };
 
+export type OrderHandlingStep = {
+	variant: string;
+	headline: string;
+	description: string;
+};
+
+export type OrderHandlingMetric = { value: string; label: string };
+
+export type OrderHandlingModuleConfig = {
+	badge_text: string;
+	headline: string;
+	subheadline: string;
+	steps: OrderHandlingStep[];
+	metrics_title: string;
+	metrics: OrderHandlingMetric[];
+};
+
 export type ShopGridModuleConfig = {
 	title: string;
 	category?: string;
@@ -390,6 +415,7 @@ export type HomepageModule =
 	| (ModuleBase & { type: 'split_features'; config: SplitFeaturesModuleConfig })
 	| (ModuleBase & { type: 'split_value'; config: SplitValueModuleConfig })
 	| (ModuleBase & { type: 'feature_highlights'; config: FeatureHighlightsModuleConfig })
+	| (ModuleBase & { type: 'order_handling'; config: OrderHandlingModuleConfig })
 	| (ModuleBase & { type: 'shop_grid'; config: ShopGridModuleConfig })
 	| (ModuleBase & { type: 'contact_form'; config: ContactFormModuleConfig })
 	| (ModuleBase & { type: 'hero'; config: HeroModuleConfig })
@@ -431,11 +457,49 @@ export type PdpCrossSellConfig = {
 	view_all_url?: string;
 };
 
+export type SlideCartConfig = {
+	cross_sell_exclude_product_ids?: number[];
+	cross_sell_exclude_slugs?: string[];
+};
+
+export const CART_CROSS_SELL_DEFAULT_EXCLUDE_SLUGS = ['bac-water-10ml', 'shipping-protection'] as const;
+export const CART_CROSS_SELL_TARGET_COUNT = 4;
+
+export function cartCrossSellExcludeSlugs(): string[] {
+	const fromConfig = config.data.pdp?.slide_cart?.cross_sell_exclude_slugs ?? [];
+	return [...new Set([...CART_CROSS_SELL_DEFAULT_EXCLUDE_SLUGS, ...fromConfig])];
+}
+
+export function cartCrossSellExcludeProductIds(): number[] {
+	const fromConfig = config.data.pdp?.slide_cart?.cross_sell_exclude_product_ids ?? [];
+	return [...new Set([...fromConfig])];
+}
+
+export function isCartCrossSellBlockedSlug(slug: string): boolean {
+	const s = slug.trim().toLowerCase();
+	if (!s) return false;
+	for (const raw of cartCrossSellExcludeSlugs()) {
+		const x = raw.trim().toLowerCase();
+		if (!x) continue;
+		if (s === x || s.startsWith(`${x}-`)) return true;
+	}
+	if (/bac[-_]?water|bacteriostatic[-_]?water/.test(s)) return true;
+	if (/shipping[-_]?protection|protected[-_]?shipping/.test(s)) return true;
+	return false;
+}
+
+export function isCartCrossSellBlockedProduct(id: number, slug = ''): boolean {
+	if (cartCrossSellExcludeProductIds().includes(id)) return true;
+	if (slug) return isCartCrossSellBlockedSlug(slug);
+	return false;
+}
+
 export type PdpConfig = {
 	show_reviews: boolean;
 	cross_sell_mode: 'simple' | 'complex';
 	modules: HomepageModule[];
 	coa_library_url?: string;
+	slide_cart?: SlideCartConfig;
 	cross_sell?: PdpCrossSellConfig;
 	bundle_bogo?: PdpBogoBundleConfig;
 	coa_section?: PdpCoaSectionConfig;
@@ -617,7 +681,7 @@ const DEFAULTS: SiteConfig = {
 	currency_code: 'USD',
 	currency_symbol: '$',
 	shipping_free_threshold: 0,
-	features: { guest_checkout: true, dark_mode: true, pretext: true },
+	features: { guest_checkout: true, dark_mode: false, pretext: true },
 	version: '0.1.0',
 	access_mode: 3,
 	accent_color: null,
@@ -751,6 +815,51 @@ const DEFAULTS: SiteConfig = {
 					product_ids: [],
 				},
 			},
+			{
+				type: 'order_handling',
+				visibility: 'all',
+				spacing_v: 'normal',
+				spacing_h: 'normal',
+				center_header: true,
+				config: {
+					badge_text: 'Our Process',
+					headline: 'How Every Order Is Handled',
+					subheadline:
+						'From verification to delivery, we ensure each step meets our highest standards.',
+					steps: [
+						{
+							variant: 'verified',
+							headline: 'Verified Batches',
+							description:
+								'Every batch undergoes rigorous quality control and verification before release.',
+						},
+						{
+							variant: 'lab',
+							headline: '3rd Party Testing',
+							description:
+								'Independent laboratory testing ensures purity and consistency you can trust.',
+						},
+						{
+							variant: 'shipping',
+							headline: 'Ships Same Day',
+							description:
+								'Discreetly packaged and dispatched within 24 hours from our U.S. facility.',
+						},
+						{
+							variant: 'support',
+							headline: '24/7 Support',
+							description:
+								'Round-the-clock customer service for any questions before or after your order.',
+						},
+					],
+					metrics_title: 'Quality Metrics',
+					metrics: [
+						{ value: '99.8%', label: 'Batch Accuracy' },
+						{ value: '100%', label: 'Verified Testing' },
+						{ value: '24/7', label: 'Support Response' },
+					],
+				},
+			},
 		],
 	},
 	review_write_enabled: true,
@@ -764,10 +873,10 @@ const DEFAULTS: SiteConfig = {
 	header_inverted: false,
 	header_borderless: false,
 	mobile_hamburger_side: 'right',
-	header_show_toggle: true,
+	header_show_toggle: false,
 	header_toggle_mobile_pin: false,
 	header_cart_mobile_pin: true,
-	theme_default: 'system',
+	theme_default: 'light',
 	logo_invert_on_dark: true,
 	logo_size: 'standard',
 	brand_position: 'left',
@@ -792,6 +901,10 @@ const DEFAULTS: SiteConfig = {
 			title: 'Often ordered with',
 			subtitle: 'Researchers commonly add these to their order',
 			view_all_url: '/shop',
+		},
+		slide_cart: {
+			cross_sell_exclude_product_ids: [],
+			cross_sell_exclude_slugs: [...CART_CROSS_SELL_DEFAULT_EXCLUDE_SLUGS],
 		},
 		coa_section: {
 			enabled: true,
@@ -884,24 +997,29 @@ function normalizeHeroVariant(raw: unknown): HomepageHeroConfig['variant'] {
 	return DEFAULTS.homepage.hero.variant;
 }
 
-/** Legacy homepage JSON often had trust_bar between split_value and product_slider (SPA hides it). */
+/** Where to seed feature_highlights — after BOGO when present, else before the catalog slider. */
 function legacyFeatureHighlightsInsertIndex(modules: HomepageModule[]): number {
 	const list = modules;
 	const svIdx = list.findIndex((m) => m?.type === 'split_value');
-	if (svIdx === -1) return -1;
-	let j = svIdx + 1;
-	while (j < list.length) {
-		const t = list[j]?.type;
-		if (t === 'trust_bar' || t === 'spacer') j++;
-		else break;
+	if (svIdx !== -1) {
+		let j = svIdx + 1;
+		while (j < list.length) {
+			const t = list[j]?.type;
+			if (t === 'trust_bar' || t === 'spacer') j++;
+			else break;
+		}
+		if (j < list.length && list[j]?.type === 'product_slider') return j;
 	}
-	if (j >= list.length || list[j]?.type !== 'product_slider') return -1;
-	return j;
+	const sliderIdx = list.findIndex((m) => m?.type === 'product_slider');
+	return sliderIdx >= 0 ? sliderIdx : -1;
 }
 
 function mergeHomepageModulesWithDefaultSplitValue(modules: HomepageModule[]): HomepageModule[] {
 	const list = Array.isArray(modules) ? [...modules] : [];
-	if (!list.some((m) => m && m.type === 'split_value')) {
+	if (
+		HOMEPAGE_SPLIT_VALUE_ENABLED &&
+		!list.some((m) => m && m.type === 'split_value')
+	) {
 		const seed = DEFAULTS.homepage.modules.find((m) => m.type === 'split_value');
 		if (seed) {
 			list.unshift(JSON.parse(JSON.stringify(seed)) as HomepageModule);
@@ -920,22 +1038,74 @@ function mergeHomepageModulesWithDefaultSplitValue(modules: HomepageModule[]): H
 	return list;
 }
 
+function mergeHomepageModulesWithDefaultOrderHandling(modules: HomepageModule[]): HomepageModule[] {
+	const list = Array.isArray(modules) ? [...modules] : [];
+	if (list.some((m) => m && m.type === 'order_handling')) {
+		return list;
+	}
+	const seed = DEFAULTS.homepage.modules.find((m) => m.type === 'order_handling');
+	if (!seed) {
+		return list;
+	}
+	const copy = JSON.parse(JSON.stringify(seed)) as HomepageModule;
+	const accIdx = list.findIndex((m) => m?.type === 'accordion');
+	if (accIdx >= 0) {
+		list.splice(accIdx, 0, copy);
+	} else {
+		list.push(copy);
+	}
+	return list;
+}
+
 export function homepageModulesWithSplitValueAfterHero(modules: HomepageModule[]): HomepageModule[] {
 	const visible = modules.filter(isModuleVisibleNow);
 	const svIdx = visible.findIndex((m) => m.type === 'split_value');
 	let ordered = [...visible];
-	if (svIdx > 0) {
+	if (HOMEPAGE_SPLIT_VALUE_ENABLED && svIdx > 0) {
 		const [sv] = ordered.splice(svIdx, 1);
 		ordered.unshift(sv);
 	}
 	const fhIdx = ordered.findIndex((m) => m.type === 'feature_highlights');
 	const svPos = ordered.findIndex((m) => m.type === 'split_value');
-	if (fhIdx !== -1 && svPos !== -1 && fhIdx !== svPos + 1) {
+	if (
+		HOMEPAGE_SPLIT_VALUE_ENABLED &&
+		fhIdx !== -1 &&
+		svPos !== -1 &&
+		fhIdx !== svPos + 1
+	) {
 		const [fh] = ordered.splice(fhIdx, 1);
 		const insertAfter = ordered.findIndex((m) => m.type === 'split_value');
 		ordered.splice(insertAfter + 1, 0, fh);
+	} else if (fhIdx > 0 && (!HOMEPAGE_SPLIT_VALUE_ENABLED || svPos === -1)) {
+		const [fh] = ordered.splice(fhIdx, 1);
+		ordered.unshift(fh);
 	}
 	return ordered;
+}
+
+function mergeFetchedPdp(incoming: PdpConfig | undefined): PdpConfig {
+	const base = DEFAULTS.pdp;
+	const pdp = incoming ?? base;
+	const slide = { ...base.slide_cart, ...pdp.slide_cart };
+	return {
+		...base,
+		...pdp,
+		slide_cart: {
+			...slide,
+			cross_sell_exclude_slugs: [
+				...new Set([
+					...CART_CROSS_SELL_DEFAULT_EXCLUDE_SLUGS,
+					...(slide.cross_sell_exclude_slugs ?? []),
+				]),
+			],
+			cross_sell_exclude_product_ids: [
+				...new Set([
+					...(base.slide_cart?.cross_sell_exclude_product_ids ?? []),
+					...(slide.cross_sell_exclude_product_ids ?? []),
+				]),
+			],
+		},
+	};
 }
 
 /** REST replaces whole `homepage`; merge defaults into `hero` so new keys resolve without wiping merchant overrides. */
@@ -952,7 +1122,9 @@ function mergeFetchedHomepage(incoming: HomepageConfig | undefined): HomepageCon
 			...rawHero,
 			variant: normalizeHeroVariant(rawHero.variant),
 		},
-		modules: mergeHomepageModulesWithDefaultSplitValue(rawModules),
+		modules: mergeHomepageModulesWithDefaultOrderHandling(
+			mergeHomepageModulesWithDefaultSplitValue(rawModules)
+		),
 	};
 }
 
@@ -1016,6 +1188,7 @@ class ConfigStore {
 					...json,
 					features: { ...DEFAULTS.features, ...json.features },
 					homepage: mergedHomepage,
+					pdp: mergeFetchedPdp(json.pdp),
 				};
 				this.ready = true;
 				this.error = null;

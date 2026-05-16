@@ -191,7 +191,7 @@
 <section class="shop-grid" class:is-v-compact={spacing_v === 'compact'} class:is-v-spacious={spacing_v === 'spacious'} class:is-h-compact={spacing_h === 'compact'} class:is-h-spacious={spacing_h === 'spacious'}>
 	<header class="shop-grid__head" class:is-centered={center_header}>
 		{#if title}
-			<p class="shop-grid__label wchs-section-heading">{title}</p>
+			<h2 class="shop-grid__label wchs-section-heading">{title}</h2>
 		{/if}
 		<div class="shop-grid__controls">
 			{#if !category}

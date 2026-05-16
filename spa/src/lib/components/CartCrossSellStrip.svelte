@@ -4,7 +4,8 @@
 	 * slide cart. Consumes `extensions.wchs_cro.cross_sell_ids` from the
 	 * cart response and renders up to 4 product cards with a one-click add
 	 * button. The server-side union already drops products already in the
-	 * cart, so this component just renders what it's given.
+	 * cart. BAC water, protected shipping, and admin-configured exclusions
+	 * are stripped server-side and again here as a safety net.
 	 */
 	import { onMount, untrack } from 'svelte';
 	import EmblaCarousel, { type EmblaCarouselType } from 'embla-carousel';
@@ -12,12 +13,19 @@
 	import { getProductsByIds, getVariations, type StoreProduct, type StoreProductVariation } from '$lib/wc/products';
 
 	import { fade, fly } from 'svelte/transition';
-	import { config } from '$lib/config.svelte';
+	import {
+		CART_CROSS_SELL_TARGET_COUNT,
+		config,
+		isCartCrossSellBlockedProduct,
+	} from '$lib/config.svelte';
 	import { formatPrice } from '$lib/utils/format';
 
 	let { ids }: { ids: number[] } = $props();
 
 	const mode = $derived(config.data.pdp?.cross_sell_mode ?? 'simple');
+	const recommendIds = $derived(
+		ids.filter((id) => !isCartCrossSellBlockedProduct(id)).slice(0, CART_CROSS_SELL_TARGET_COUNT)
+	);
 
 	// Modal state for simple mode variable products
 	let modalProduct = $state<StoreProduct | null>(null);
@@ -311,23 +319,22 @@
 	// Re-fetch whenever the id list changes. Cache by stringified-sorted key
 	// so toggling "cart item removed" doesn't re-fetch the same set.
 	$effect(() => {
-		const key = [...ids].sort((a, b) => a - b).join(',');
+		const key = [...recommendIds].sort((a, b) => a - b).join(',');
 		if (key === loadedForIds) return;
 		untrack(() => {
 			loadedForIds = key;
 		});
-		if (ids.length === 0) {
+		if (recommendIds.length === 0) {
 			products = [];
 			return;
 		}
 		loading = true;
-		getProductsByIds(ids.slice(0, 6))
+		getProductsByIds(recommendIds.slice(0, CART_CROSS_SELL_TARGET_COUNT))
 			.then((list) => {
-				// Preserve server-side order
-				const order = new Map(ids.map((id, i) => [id, i]));
-				products = list.sort(
-					(a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0)
-				);
+				const order = new Map(recommendIds.map((id, i) => [id, i]));
+				products = list
+					.filter((p) => !isCartCrossSellBlockedProduct(p.id, p.slug))
+					.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 			})
 			.finally(() => {
 				loading = false;
@@ -362,7 +369,7 @@
 		</header>
 		<div class="cart-xsell__viewport" bind:this={viewportEl}>
 			<div class="cart-xsell__track" bind:this={trackEl} role="list">
-			{#each products.slice(0, 6) as product (product.id)}
+			{#each products.slice(0, CART_CROSS_SELL_TARGET_COUNT) as product (product.id)}
 				{@const cro = product.extensions?.wchs_cro}
 				{@const regular = cro?.regular_price ?? Number(product.prices.regular_price)}
 				{@const current = Number(product.prices.price)}

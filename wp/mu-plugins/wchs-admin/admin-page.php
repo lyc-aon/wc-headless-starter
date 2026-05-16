@@ -336,7 +336,7 @@ class AdminPage {
 			'header_inverted'             => false,
 			'header_borderless'           => false,
 			'mobile_hamburger_side'       => 'right',
-			'header_show_toggle'          => true,
+			'header_show_toggle'          => false,
 			'header_toggle_mobile_pin'    => false,
 			'header_cart_mobile_pin'      => true,
 			'seo_nosnippet_products'      => false,
@@ -357,7 +357,7 @@ class AdminPage {
 			],
 			'footer'                      => [ 'columns' => [], 'tagline' => '' ],
 			'social_links'                => [], // [{ platform: 'instagram'|'facebook'|'x'|'youtube'|'linkedin'|'tiktok'|'pinterest', url: string }]
-			'theme_default'               => 'system', // 'system' | 'light' | 'dark' — what first-time visitors see
+			'theme_default'               => 'light', // 'system' | 'light' | 'dark' — what first-time visitors see
 			'logo_invert_on_dark'         => true,      // auto-invert the header logo in dark mode
 			'logo_dark_id'                => 0,         // optional WP attachment ID; when set, wins over invert in dark mode
 			'logo_size'                   => 'standard', // 'compact' | 'standard' | 'prominent' | 'xl' — desktop only; mobile stays constrained
@@ -488,6 +488,10 @@ class AdminPage {
 				'title'        => 'Often ordered with',
 				'subtitle'     => 'Researchers commonly add these to their order',
 				'view_all_url' => '/shop',
+			],
+			'slide_cart'          => [
+				'cross_sell_exclude_product_ids' => [],
+				'cross_sell_exclude_slugs'       => [ 'bac-water-10ml', 'shipping-protection' ],
 			],
 			'coa_section'         => [
 				'enabled'         => true,
@@ -1681,12 +1685,43 @@ class AdminPage {
 		$raw_json = json_decode( wp_unslash( $_POST['modules_json'] ?? '[]' ), true );
 		$modules  = self::parse_modules_from_post( is_array( $raw_json ) ? $raw_json : [], 'pdp' );
 		$xsell_mode = sanitize_text_field( $_POST['cross_sell_mode'] ?? 'simple' );
-		if ( ! in_array( $xsell_mode, [ 'simple', 'complex' ], true ) ) $xsell_mode = 'simple';
-		update_option( self::PDP_OPTION, [
-			'show_reviews'    => ! empty( $_POST['pdp_show_reviews'] ),
-			'cross_sell_mode' => $xsell_mode,
-			'modules'         => $modules,
-		] );
+		if ( ! in_array( $xsell_mode, [ 'simple', 'complex' ], true ) ) {
+			$xsell_mode = 'simple';
+		}
+		$exclude_raw = sanitize_text_field( wp_unslash( $_POST['slide_cart_cross_sell_exclude_ids'] ?? '' ) );
+		$exclude_ids = array_values(
+			array_unique(
+				array_filter(
+					array_map( 'intval', preg_split( '/[\s,]+/', $exclude_raw, -1, PREG_SPLIT_NO_EMPTY ) ?: [] )
+				)
+			)
+		);
+		$existing = get_option( self::PDP_OPTION, [] );
+		if ( ! is_array( $existing ) ) {
+			$existing = [];
+		}
+		update_option(
+			self::PDP_OPTION,
+			array_merge(
+				$existing,
+				[
+					'show_reviews'    => ! empty( $_POST['pdp_show_reviews'] ),
+					'cross_sell_mode' => $xsell_mode,
+					'modules'         => $modules,
+					'slide_cart'      => [
+						'cross_sell_exclude_product_ids' => $exclude_ids,
+						'cross_sell_exclude_slugs'       => array_values(
+							array_unique(
+								array_merge(
+									[ 'bac-water-10ml', 'shipping-protection' ],
+									(array) ( $existing['slide_cart']['cross_sell_exclude_slugs'] ?? [] )
+								)
+							)
+						),
+					],
+				]
+			)
+		);
 	}
 
 	private function save_shop_config(): void {
@@ -4093,6 +4128,12 @@ class AdminPage {
 	private function render_pdp_tab( array $config ): void {
 		$modules      = $config['modules'] ?? [];
 		$show_reviews = $config['show_reviews'] ?? true;
+		$slide_cart   = is_array( $config['slide_cart'] ?? null ) ? $config['slide_cart'] : [];
+		$exclude_ids  = array_values(
+			array_unique(
+				array_filter( array_map( 'intval', (array) ( $slide_cart['cross_sell_exclude_product_ids'] ?? [] ) ) )
+			)
+		);
 		?>
 <form method="POST" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 			<?php wp_nonce_field( 'wchs_save_settings', 'wchs_nonce' ); ?>
@@ -4115,6 +4156,35 @@ class AdminPage {
 						<option value="simple" <?php selected( $xsell_mode, 'simple' ); ?>>Simple - add button only, modal for variable products</option>
 						<option value="complex" <?php selected( $xsell_mode, 'complex' ); ?>>Complex - inline attribute stepper + quantity on card</option>
 					</select>
+				</div>
+			</div>
+
+			<h2>Slide cart <?php echo self::hint_icon( 'Controls the slide-out cart drawer. Cross-sell exclusions apply to the “You might also like” recommendations only.' ); ?></h2>
+			<div class="wchs-field wchs-field--full" style="max-width:640px">
+				<label>Never recommend in “You might also like” <?php echo self::hint_icon( 'bac-water-10ml and shipping-protection are excluded by default. Add more products here if needed.' ); ?></label>
+				<div class="wchs-product-picker" data-field="slide_cart_cross_sell_exclude">
+					<input type="text" class="wchs-product-search" placeholder="Search products to exclude…" autocomplete="off" />
+					<div class="wchs-product-results"></div>
+					<input
+						type="hidden"
+						name="slide_cart_cross_sell_exclude_ids"
+						value="<?php echo esc_attr( implode( ',', $exclude_ids ) ); ?>"
+						class="wchs-product-ids-hidden"
+					/>
+					<ul class="wchs-product-tags">
+						<?php
+						foreach ( $exclude_ids as $pid ) :
+							$p = wc_get_product( $pid );
+							if ( ! $p ) {
+								continue;
+							}
+							?>
+						<li class="wchs-product-tag" data-id="<?php echo esc_attr( (string) $pid ); ?>">
+							<?php echo esc_html( $p->get_name() ); ?>
+							<button type="button" class="wchs-product-tag__remove" aria-label="Remove">×</button>
+						</li>
+						<?php endforeach; ?>
+					</ul>
 				</div>
 			</div>
 
@@ -4779,6 +4849,55 @@ class AdminPage {
 				<label style="display:inline-flex;align-items:center;gap:6px;font-weight:500">
 					Accent color override
 					<?php echo self::hint_icon( 'Optional accent for this block (button, stars, highlights).' ); ?>
+				</label>
+				<?php echo self::accent_override_swatches(); ?>
+			</div>
+			<?php $this->render_module_common_fields(); ?>
+		</div>
+
+		<!-- Order handling -->
+		<div id="wchs-mod-tpl-order_handling" style="display:none">
+			<div class="wchs-module__fields" style="display:flex;flex-direction:column;gap:14px">
+				<div class="wchs-field wchs-field--full"><label>Badge text</label><input type="text" data-field="oh_badge_text" placeholder="Our Process" /></div>
+				<div class="wchs-field wchs-field--full"><label>Headline</label><input type="text" data-field="oh_headline" placeholder="How Every Order Is Handled" /></div>
+				<div class="wchs-field wchs-field--full"><label>Subheadline</label><input type="text" data-field="oh_subheadline" /></div>
+				<div class="wchs-field wchs-field--full">
+					<label>Process steps</label>
+					<div class="wchs-oh-steps wchs-accordion-items" style="display:flex;flex-direction:column;gap:10px">
+						<div class="wchs-accordion-item" style="display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid #ddd;background:#fafafa">
+							<label style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#999;margin:0">Icon</label>
+							<select data-field="oh_step_variant">
+								<option value="verified">Verified batches</option>
+								<option value="lab">Lab testing</option>
+								<option value="shipping">Shipping</option>
+								<option value="support">Support</option>
+							</select>
+							<label style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#999;margin:8px 0 0">Title</label>
+							<input type="text" placeholder="Step title" />
+							<label style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#999;margin:8px 0 0">Description</label>
+							<input type="text" placeholder="Step description" />
+							<button type="button" class="wchs-accordion-item__remove" title="Remove">✕</button>
+						</div>
+					</div>
+					<button type="button" class="wchs-btn wchs-btn--secondary wchs-add-oh-step-modal" style="margin-top:10px">+ Add step</button>
+				</div>
+				<div class="wchs-field wchs-field--full"><label>Metrics panel title</label><input type="text" data-field="oh_metrics_title" placeholder="Quality Metrics" /></div>
+				<div class="wchs-field wchs-field--full">
+					<label>Quality metrics</label>
+					<div class="wchs-oh-metrics wchs-accordion-items" style="display:flex;flex-direction:column;gap:10px">
+						<div class="wchs-accordion-item" style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center;padding:6px 8px;border:1px solid #ddd;background:#fafafa">
+							<input type="text" placeholder="Value (e.g. 99.8%)" />
+							<input type="text" placeholder="Label" />
+							<button type="button" class="wchs-accordion-item__remove" title="Remove">✕</button>
+						</div>
+					</div>
+					<button type="button" class="wchs-btn wchs-btn--secondary wchs-add-oh-metric-modal" style="margin-top:10px">+ Add metric</button>
+				</div>
+			</div>
+			<div class="wchs-field wchs-overrides-row" style="margin-top:12px;padding-top:12px;border-top:1px solid #e5e5e5">
+				<label style="display:inline-flex;align-items:center;gap:6px;font-weight:500">
+					Accent color override
+					<?php echo self::hint_icon( 'Optional accent for badge, metrics, and arrows.' ); ?>
 				</label>
 				<?php echo self::accent_override_swatches(); ?>
 			</div>

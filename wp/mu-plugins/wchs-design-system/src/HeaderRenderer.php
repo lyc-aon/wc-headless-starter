@@ -20,6 +20,13 @@ class HeaderRenderer {
 		if ( self::$rendered || is_admin() ) {
 			return;
 		}
+		if (
+			function_exists( 'is_checkout' )
+			&& is_checkout()
+			&& ! is_wc_endpoint_url( 'order-received' )
+		) {
+			return;
+		}
 		self::$rendered = true;
 
 		$spa_url  = $this->spa_url();
@@ -42,7 +49,8 @@ class HeaderRenderer {
 		if ( ! in_array( $hamburger_side, [ 'left', 'right', 'off' ], true ) ) {
 			$hamburger_side = 'right';
 		}
-		$show_toggle       = $site_settings['header_show_toggle'] ?? true;
+		$show_toggle       = ! empty( $site_settings['header_show_toggle'] )
+			&& ! empty( $site_settings['features_dark_mode'] );
 		$toggle_mobile_pin = ! empty( $site_settings['header_toggle_mobile_pin'] );
 		$cart_mobile_pin   = $site_settings['header_cart_mobile_pin'] ?? true;
 		$toggle_accent     = $site_settings['header_toggle_accent'] ?? true;

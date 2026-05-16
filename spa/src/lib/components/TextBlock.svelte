@@ -91,7 +91,7 @@
 {:else if config.content}
 	<section class="text-block" class:is-v-compact={spacing_v === 'compact'} class:is-v-spacious={spacing_v === 'spacious'} class:is-h-compact={spacing_h === 'compact'} class:is-h-spacious={spacing_h === 'spacious'} class:is-centered={center_header}>
 		{#if config.title}
-			<p class="text-block__label wchs-section-heading" class:is-centered={center_header}>{config.title}</p>
+			<h2 class="text-block__label wchs-section-heading" class:is-centered={center_header}>{config.title}</h2>
 		{/if}
 		<div class="text-block__content" class:is-centered={center_header}>
 			{@html config.content}

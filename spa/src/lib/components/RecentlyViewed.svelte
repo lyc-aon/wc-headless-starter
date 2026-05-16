@@ -77,7 +77,7 @@
 {#if !loading && products.length > 0}
 	<section class="homepage-module recently-viewed" class:is-edge={edge_to_edge} data-testid="recently-viewed">
 		<div class="homepage-module__head">
-			<p class="homepage-module__label wchs-section-heading">{title}</p>
+			<h2 class="homepage-module__label wchs-section-heading">{title}</h2>
 		</div>
 		<ProductSlider {products} {edge_to_edge} listingSource="Recently viewed" />
 	</section>

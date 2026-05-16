@@ -582,6 +582,281 @@ function wchs_cro_cart_item_schema() {
 	];
 }
 
+/**
+ * Default product slugs never shown in the slide-cart "You might also like" rail.
+ *
+ * @return string[]
+ */
+function wchs_cro_cart_cross_sell_default_exclude_slugs(): array {
+	return [ 'bac-water-10ml', 'shipping-protection' ];
+}
+
+/**
+ * True when a product slug matches ancillary items (BAC water, shipping protection).
+ */
+function wchs_cro_product_slug_is_cart_cross_sell_blocked( string $slug ): bool {
+	$slug = strtolower( trim( $slug ) );
+	if ( '' === $slug ) {
+		return false;
+	}
+	foreach ( wchs_cro_cart_cross_sell_default_exclude_slugs() as $blocked ) {
+		if ( $slug === $blocked || str_starts_with( $slug, $blocked . '-' ) ) {
+			return true;
+		}
+	}
+	if ( preg_match( '/bac[-_]?water|bacteriostatic[-_]?water/', $slug ) ) {
+		return true;
+	}
+	if ( preg_match( '/shipping[-_]?protection|protected[-_]?shipping/', $slug ) ) {
+		return true;
+	}
+	return false;
+}
+
+/**
+ * Product IDs excluded from slide-cart cross-sells (admin config + slug defaults).
+ *
+ * @return int[]
+ */
+function wchs_cro_cart_cross_sell_excluded_product_ids(): array {
+	static $cache = null;
+	if ( is_array( $cache ) ) {
+		return $cache;
+	}
+
+	$blocked = [];
+	$slugs   = wchs_cro_cart_cross_sell_default_exclude_slugs();
+
+	if ( class_exists( '\\WCHS\\Admin\\AdminPage' ) ) {
+		$pdp = \WCHS\Admin\AdminPage::get_pdp_config();
+		$sc  = is_array( $pdp['slide_cart'] ?? null ) ? $pdp['slide_cart'] : [];
+		foreach ( (array) ( $sc['cross_sell_exclude_product_ids'] ?? [] ) as $id ) {
+			$id = (int) $id;
+			if ( $id > 0 ) {
+				$blocked[ $id ] = true;
+			}
+		}
+		$config_slugs = (array) ( $sc['cross_sell_exclude_slugs'] ?? [] );
+		$slugs        = array_values(
+			array_unique(
+				array_filter(
+					array_map(
+						'sanitize_title',
+						array_merge( $slugs, $config_slugs )
+					)
+				)
+			)
+		);
+	}
+
+	foreach ( $slugs as $slug ) {
+		$post = get_page_by_path( $slug, OBJECT, 'product' );
+		if ( $post instanceof \WP_Post ) {
+			$blocked[ (int) $post->ID ] = true;
+			continue;
+		}
+		if ( function_exists( 'wc_get_products' ) ) {
+			$found = wc_get_products(
+				[
+					'status' => 'publish',
+					'limit'  => 1,
+					'slug'   => $slug,
+					'return' => 'ids',
+				]
+			);
+			if ( ! empty( $found[0] ) ) {
+				$blocked[ (int) $found[0] ] = true;
+			}
+		}
+	}
+
+	$cache = array_values( array_map( 'intval', array_keys( $blocked ) ) );
+	return $cache;
+}
+
+/**
+ * @param int $product_id
+ */
+function wchs_cro_is_cart_cross_sell_blocked_product_id( int $product_id ): bool {
+	if ( $product_id < 1 ) {
+		return true;
+	}
+	if ( in_array( $product_id, wchs_cro_cart_cross_sell_excluded_product_ids(), true ) ) {
+		return true;
+	}
+	$product = wc_get_product( $product_id );
+	if ( ! $product ) {
+		return false;
+	}
+	if ( wchs_cro_product_slug_is_cart_cross_sell_blocked( $product->get_slug() ) ) {
+		return true;
+	}
+	if ( $product->is_type( 'variation' ) ) {
+		$parent_id = (int) $product->get_parent_id();
+		if ( $parent_id > 0 ) {
+			$parent = wc_get_product( $parent_id );
+			if ( $parent && wchs_cro_product_slug_is_cart_cross_sell_blocked( $parent->get_slug() ) ) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+/**
+ * @param int[] $ids
+ * @return int[]
+ */
+function wchs_cro_filter_cart_cross_sell_ids( array $ids ): array {
+	$out = [];
+	foreach ( $ids as $id ) {
+		$id = (int) $id;
+		if ( $id > 0 && ! wchs_cro_is_cart_cross_sell_blocked_product_id( $id ) ) {
+			$out[] = $id;
+		}
+	}
+	return array_values( $out );
+}
+
+/**
+ * Slide-cart cross-sell rail size (always pad to this count when the catalog allows).
+ */
+function wchs_cro_cart_cross_sell_target_count(): int {
+	return 4;
+}
+
+/**
+ * Product IDs that must never appear as cart cross-sells (in cart, blocked, or both).
+ *
+ * @return int[]
+ */
+function wchs_cro_cart_cross_sell_reserved_ids(): array {
+	$reserved = wchs_cro_cart_cross_sell_excluded_product_ids();
+	if ( ! function_exists( 'WC' ) || ! WC()->cart ) {
+		return array_values( array_unique( array_map( 'intval', $reserved ) ) );
+	}
+	foreach ( WC()->cart->get_cart() as $cart_item ) {
+		if ( ! empty( $cart_item['product_id'] ) ) {
+			$reserved[] = (int) $cart_item['product_id'];
+		}
+		if ( ! empty( $cart_item['variation_id'] ) ) {
+			$reserved[] = (int) $cart_item['variation_id'];
+		}
+	}
+	return array_values( array_unique( array_filter( array_map( 'intval', $reserved ) ) ) );
+}
+
+/**
+ * @return int[]
+ */
+function wchs_cro_cart_product_category_ids(): array {
+	$cat_ids = [];
+	if ( ! function_exists( 'WC' ) || ! WC()->cart ) {
+		return $cat_ids;
+	}
+	foreach ( WC()->cart->get_cart() as $cart_item ) {
+		$product_id = (int) ( $cart_item['product_id'] ?? 0 );
+		if ( $product_id < 1 ) {
+			continue;
+		}
+		$terms = wp_get_post_terms( $product_id, 'product_cat', [ 'fields' => 'ids' ] );
+		if ( is_array( $terms ) ) {
+			$cat_ids = array_merge( $cat_ids, $terms );
+		}
+	}
+	return array_values( array_unique( array_map( 'intval', $cat_ids ) ) );
+}
+
+/**
+ * @param array{exclude?: int[], limit?: int, category?: int[]} $args
+ * @return int[]
+ */
+function wchs_cro_query_cart_cross_sell_candidates( array $args ): array {
+	if ( ! function_exists( 'wc_get_products' ) ) {
+		return [];
+	}
+	$exclude = array_values( array_unique( array_filter( array_map( 'intval', (array) ( $args['exclude'] ?? [] ) ) ) ) );
+	$limit     = max( 1, (int) ( $args['limit'] ?? wchs_cro_cart_cross_sell_target_count() ) );
+	$query     = [
+		'status'       => 'publish',
+		'limit'        => $limit + count( $exclude ) + 4,
+		'orderby'      => 'meta_value_num',
+		'meta_key'     => 'total_sales',
+		'order'        => 'DESC',
+		'exclude'      => $exclude,
+		'stock_status' => 'instock',
+		'type'         => [ 'simple', 'variable' ],
+		'return'       => 'ids',
+	];
+	$categories = array_values( array_filter( array_map( 'intval', (array) ( $args['category'] ?? [] ) ) ) );
+	if ( ! empty( $categories ) ) {
+		$query['category'] = $categories;
+	}
+	$found = wc_get_products( $query );
+	if ( ! is_array( $found ) ) {
+		return [];
+	}
+	$out = [];
+	foreach ( $found as $id ) {
+		$id = (int) $id;
+		if ( $id < 1 || in_array( $id, $exclude, true ) ) {
+			continue;
+		}
+		if ( wchs_cro_is_cart_cross_sell_blocked_product_id( $id ) ) {
+			continue;
+		}
+		$product = wc_get_product( $id );
+		if ( ! $product || ! $product->is_purchasable() ) {
+			continue;
+		}
+		$out[] = $id;
+		if ( count( $out ) >= $limit ) {
+			break;
+		}
+	}
+	return $out;
+}
+
+/**
+ * Filter exclusions, then backfill with in-stock best sellers until target count.
+ *
+ * @param int[] $ids
+ * @return int[]
+ */
+function wchs_cro_pad_cart_cross_sell_ids( array $ids ): array {
+	if ( ! function_exists( 'WC' ) || ! WC()->cart || WC()->cart->is_empty() ) {
+		return [];
+	}
+	$target = wchs_cro_cart_cross_sell_target_count();
+	$ids    = wchs_cro_filter_cart_cross_sell_ids( $ids );
+	if ( count( $ids ) >= $target ) {
+		return array_slice( $ids, 0, $target );
+	}
+	$reserved = array_values( array_unique( array_merge( wchs_cro_cart_cross_sell_reserved_ids(), $ids ) ) );
+	$fill     = [];
+	$cat_ids  = wchs_cro_cart_product_category_ids();
+	if ( ! empty( $cat_ids ) ) {
+		$fill = wchs_cro_query_cart_cross_sell_candidates(
+			[
+				'category' => $cat_ids,
+				'exclude'  => $reserved,
+				'limit'    => $target - count( $ids ),
+			]
+		);
+	}
+	$reserved = array_values( array_unique( array_merge( $reserved, $fill ) ) );
+	if ( count( $ids ) + count( $fill ) < $target ) {
+		$more = wchs_cro_query_cart_cross_sell_candidates(
+			[
+				'exclude' => $reserved,
+				'limit'   => $target - count( $ids ) - count( $fill ),
+			]
+		);
+		$fill = array_merge( $fill, $more );
+	}
+	return array_slice( array_values( array_unique( array_merge( $ids, $fill ) ) ), 0, $target );
+}
+
 function wchs_cro_cart_data() {
 	if ( ! function_exists( 'WC' ) || ! WC()->cart ) {
 		return [ 'total_savings' => 0, 'cross_sell_ids' => [] ];
@@ -604,7 +879,10 @@ function wchs_cro_cart_data() {
 		$total_savings += max( 0, ( $regular_unit_minor - $eff_unit_minor ) * $qty );
 
 		foreach ( (array) $product->get_cross_sell_ids() as $id ) {
-			$cross_sell_ids[ (int) $id ] = true;
+			$id = (int) $id;
+			if ( $id > 0 && ! wchs_cro_is_cart_cross_sell_blocked_product_id( $id ) ) {
+				$cross_sell_ids[ $id ] = true;
+			}
 		}
 	}
 
@@ -617,7 +895,9 @@ function wchs_cro_cart_data() {
 
 	return [
 		'total_savings'  => $total_savings,
-		'cross_sell_ids' => array_values( array_map( 'intval', array_keys( $cross_sell_ids ) ) ),
+		'cross_sell_ids' => wchs_cro_pad_cart_cross_sell_ids(
+			array_values( array_map( 'intval', array_keys( $cross_sell_ids ) ) )
+		),
 	];
 }
 
@@ -630,7 +910,7 @@ function wchs_cro_cart_schema() {
 			'readonly'    => true,
 		],
 		'cross_sell_ids' => [
-			'description' => 'Union of cross-sell ids from every cart item, excluding items already in the cart.',
+			'description' => 'Up to four cross-sell product ids for the slide-cart rail (WC cross-sells, backfilled with best sellers when needed).',
 			'type'        => 'array',
 			'context'     => [ 'view', 'edit' ],
 			'readonly'    => true,

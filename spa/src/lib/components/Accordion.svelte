@@ -14,7 +14,7 @@
 		<h2 class="accordion__title wchs-section-heading" class:is-centered={center_header}>{config.title}</h2>
 		<div class="accordion__list">
 			{#each config.items as item, i}
-				<div class="accordion__item">
+				<div class="accordion__item" class:is-open={openIndex === i}>
 					<button
 						class="accordion__trigger"
 						class:is-open={openIndex === i}
@@ -22,9 +22,7 @@
 						aria-expanded={openIndex === i}
 					>
 						<span class="accordion__question">{item.q}</span>
-						<svg class="accordion__chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<path d="M6 9l6 6 6-6" />
-						</svg>
+						<span class="accordion__icon" aria-hidden="true"></span>
 					</button>
 					<div class="accordion__panel" class:is-open={openIndex === i}>
 						<div class="accordion__answer accordion__answer--html">
@@ -39,40 +37,55 @@
 
 <style>
 	.accordion {
-		--mod-pt: 40px;
-		--mod-pb: 40px;
+		--mod-pt: var(--wchs-spacing-v-normal, 48px);
+		--mod-pb: var(--wchs-spacing-v-normal, 56px);
 		--mod-px: 28px;
 		--mod-max-w: 960px;
 		max-width: var(--mod-max-w);
 		margin: 0 auto;
 		padding: var(--mod-pt) var(--mod-px) var(--mod-pb);
 	}
-	.accordion.is-v-compact  { --mod-pt: 12px; --mod-pb: 12px; }
-	.accordion.is-v-spacious { --mod-pt: 56px; --mod-pb: 64px; }
+	.accordion.is-v-compact {
+		--mod-pt: var(--wchs-spacing-v-compact, 20px);
+		--mod-pb: var(--wchs-spacing-v-compact, 24px);
+	}
+	.accordion.is-v-spacious {
+		--mod-pt: var(--wchs-spacing-v-spacious, 72px);
+		--mod-pb: var(--wchs-spacing-v-spacious, 80px);
+	}
 	.accordion.is-h-compact  { --mod-max-w: 100%; --mod-px: 12px; }
 	.accordion.is-h-spacious { --mod-max-w: 760px; --mod-px: 40px; }
 
 	.accordion__title {
-		margin: 0 0 28px;
+		margin: 0 0 32px;
 	}
 	.accordion__title.is-centered {
 		text-align: center;
 	}
 
 	.accordion__list {
-		border-top: 1px solid var(--border);
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
 	}
 
 	.accordion__item {
-		border-bottom: 1px solid var(--border);
+		border-radius: 10px;
+		background: var(--bg-muted);
+		overflow: hidden;
+		transition: background var(--dur-fast) var(--ease);
+	}
+	.accordion__item.is-open {
+		background: color-mix(in srgb, var(--bg-muted) 88%, var(--fg) 4%);
 	}
 
 	.accordion__trigger {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		gap: 16px;
 		width: 100%;
-		padding: 18px 0;
+		padding: 18px 20px;
 		background: none;
 		border: none;
 		cursor: pointer;
@@ -82,26 +95,49 @@
 	}
 
 	.accordion__question {
-		font-size: 14px;
-		font-weight: 500;
-		letter-spacing: -0.01em;
+		flex: 1;
+		min-width: 0;
+		font-size: 15px;
+		font-weight: 700;
+		letter-spacing: -0.015em;
 		line-height: 1.4;
-		padding-right: 16px;
+		padding-right: 8px;
 	}
 
-	.accordion__chevron {
+	.accordion__icon {
+		position: relative;
 		flex-shrink: 0;
+		width: 18px;
+		height: 18px;
 		color: var(--fg-muted);
-		transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+	}
+	.accordion__icon::before,
+	.accordion__icon::after {
+		content: '';
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		background: currentColor;
+		border-radius: 1px;
+		transition:
+			transform var(--dur-fast) var(--ease),
+			opacity var(--dur-fast) var(--ease);
+	}
+	.accordion__icon::before {
+		width: 2px;
+		height: 14px;
+		transform: translate(-50%, -50%);
+	}
+	.accordion__icon::after {
+		width: 14px;
+		height: 2px;
+		transform: translate(-50%, -50%);
+	}
+	.accordion__trigger.is-open .accordion__icon::before {
+		opacity: 0;
+		transform: translate(-50%, -50%) scaleY(0);
 	}
 
-	.accordion__trigger.is-open .accordion__chevron {
-		transform: rotate(180deg);
-	}
-
-	/* Grid-row height animation. Panel clips the item box (which has
-	   padding-bottom that would otherwise overflow the 0-height track),
-	   while the item itself clips its own text content. */
 	.accordion__panel {
 		display: grid;
 		grid-template-rows: minmax(0, 0fr);
@@ -118,13 +154,12 @@
 		overflow: hidden;
 	}
 
-	/* Rich HTML content from WYSIWYG editor */
 	.accordion__answer--html {
 		font-size: 14px;
 		line-height: 1.65;
 		color: var(--fg-muted);
 		max-width: 640px;
-		padding: 0 0 18px;
+		padding: 0 20px 18px;
 	}
 	.accordion__answer--html :global(p) { margin: 0 0 10px; }
 	.accordion__answer--html :global(p:last-child) { margin-bottom: 0; }

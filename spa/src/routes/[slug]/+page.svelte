@@ -14,6 +14,7 @@
 	import SplitFeatures from '$lib/components/SplitFeatures.svelte';
 	import SplitValue from '$lib/components/SplitValue.svelte';
 	import FeatureHighlights from '$lib/components/FeatureHighlights.svelte';
+	import OrderHandling from '$lib/components/OrderHandling.svelte';
 	import ShopGrid from '$lib/components/ShopGrid.svelte';
 	import ContactForm from '$lib/components/ContactForm.svelte';
 	import CTA from '$lib/components/CTA.svelte';
@@ -114,6 +115,8 @@
 					<HomepageProductSlider config={mod.config} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
 				{:else if mod.type === 'review_slider'}
 					<ReviewSlider title={mod.config.title || 'What customers say'} photos_only={mod.config.photos_only || false} product_ids={mod.config.product_ids || []} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
+				{:else if mod.type === 'order_handling'}
+					<OrderHandling config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header ?? true} />
 				{:else if mod.type === 'accordion'}
 					<Accordion config={mod.config} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
 				{:else if mod.type === 'trust_bar'}

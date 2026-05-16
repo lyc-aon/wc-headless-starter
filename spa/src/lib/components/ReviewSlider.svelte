@@ -120,7 +120,7 @@
 {#if reviews.length > 0}
 	<section class="review-slider" class:is-v-compact={spacing_v === 'compact'} class:is-v-spacious={spacing_v === 'spacious'} class:is-h-compact={spacing_h === 'compact'} class:is-h-spacious={spacing_h === 'spacious'} id="reviews">
 		<div class="review-slider__head" class:is-centered={center_header}>
-			<p class="review-slider__title wchs-section-heading">{title}</p>
+			<h2 class="review-slider__title wchs-section-heading">{title}</h2>
 			<p class="review-slider__meta">
 				<span class="review-slider__rating">{totalAvg}</span>
 				<span class="review-slider__stars">

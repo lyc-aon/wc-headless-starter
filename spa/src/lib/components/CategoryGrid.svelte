@@ -48,7 +48,7 @@
 {#if tiles.length > 0}
 	<section class="cat-grid" class:is-v-compact={spacing_v === 'compact'} class:is-v-spacious={spacing_v === 'spacious'} class:is-h-compact={spacing_h === 'compact'} class:is-h-spacious={spacing_h === 'spacious'}>
 		{#if config.title}
-			<p class="cat-grid__label wchs-section-heading" class:is-centered={center_header}>{config.title}</p>
+			<h2 class="cat-grid__label wchs-section-heading" class:is-centered={center_header}>{config.title}</h2>
 		{/if}
 		<div class="cat-grid__grid" style="--cols: {cols}; --gap: {gap}px;">
 			{#each tiles as tile}
@@ -82,20 +82,26 @@
 
 <style>
 	.cat-grid {
-		--mod-pt: 32px;
-		--mod-pb: 40px;
+		--mod-pt: var(--wchs-spacing-v-normal, 48px);
+		--mod-pb: var(--wchs-spacing-v-normal, 56px);
 		--mod-px: 28px;
 		--mod-max-w: 1200px;
 		max-width: var(--mod-max-w);
 		margin: 0 auto;
 		padding: var(--mod-pt) var(--mod-px) var(--mod-pb);
 	}
-	.cat-grid.is-v-compact  { --mod-pt: 12px; --mod-pb: 12px; }
-	.cat-grid.is-v-spacious { --mod-pt: 56px; --mod-pb: 64px; }
+	.cat-grid.is-v-compact {
+		--mod-pt: var(--wchs-spacing-v-compact, 20px);
+		--mod-pb: var(--wchs-spacing-v-compact, 24px);
+	}
+	.cat-grid.is-v-spacious {
+		--mod-pt: var(--wchs-spacing-v-spacious, 72px);
+		--mod-pb: var(--wchs-spacing-v-spacious, 80px);
+	}
 	.cat-grid.is-h-compact  { --mod-max-w: 100%; --mod-px: 12px; }
 	.cat-grid.is-h-spacious { --mod-max-w: 760px; --mod-px: 40px; }
 	.cat-grid__label {
-		margin: 0 0 24px;
+		margin: 0 0 28px;
 	}
 	.cat-grid__label.is-centered {
 		text-align: center;
@@ -112,7 +118,7 @@
 		position: relative;
 		aspect-ratio: 1 / 1;
 		overflow: hidden;
-		border-radius: var(--radius-md);
+		border-radius: 14px;
 		background: var(--bg-muted);
 		text-decoration: none;
 		color: #fff;

@@ -38,6 +38,11 @@
 	// go into the hamburger drawer. When mobile_hamburger_side='off',
 	// all items render inline as before (no drawer, current behavior).
 	const MAX_PINNED = 3;
+
+	const themeToggleVisible = $derived(
+		Boolean(config.data.features?.dark_mode && config.data.header_show_toggle)
+	);
+
 	type DrawerEntry =
 		| { kind: 'link'; link: import('$lib/config.svelte').HeaderLink }
 		| { kind: 'toggle' }
@@ -49,7 +54,7 @@
 		for (const link of config.data.header_links) {
 			if (link.mobile_pin) out.push({ kind: 'link', link });
 		}
-		if (config.data.header_show_toggle && config.data.header_toggle_mobile_pin) {
+		if (themeToggleVisible && config.data.header_toggle_mobile_pin) {
 			out.push({ kind: 'toggle' });
 		}
 		if (config.data.header_cart_mobile_pin) out.push({ kind: 'cart' });
@@ -62,7 +67,7 @@
 		for (const link of config.data.header_links) {
 			if (link.mobile_pin) all.push({ kind: 'link', link });
 		}
-		if (config.data.header_show_toggle && config.data.header_toggle_mobile_pin) {
+		if (themeToggleVisible && config.data.header_toggle_mobile_pin) {
 			all.push({ kind: 'toggle' });
 		}
 		if (config.data.header_cart_mobile_pin) all.push({ kind: 'cart' });
@@ -75,7 +80,7 @@
 		for (const link of config.data.header_links) {
 			if (!link.mobile_pin) out.push({ kind: 'link', link });
 		}
-		if (config.data.header_show_toggle && !config.data.header_toggle_mobile_pin) {
+		if (themeToggleVisible && !config.data.header_toggle_mobile_pin) {
 			out.push({ kind: 'toggle' });
 		}
 		if (!config.data.header_cart_mobile_pin) out.push({ kind: 'cart' });
@@ -165,7 +170,7 @@
 		// in app.html already set data-theme before first paint. This call
 		// syncs the reactive Svelte store with the DOM attribute so toggle
 		// and cross-tab listeners work. See: theme flash prevention rules.
-		theme.init();
+		theme.init('light');
 
 		// Async init — fire and forget. Every step is resilient:
 		// config.load() has its own try/catch (always sets ready=true).
@@ -175,9 +180,13 @@
 			await config.load();
 			config.initPreviewMode();
 
-			// Re-resolve theme now that the admin-configured default is known.
-			// No-op if the visitor has an explicit stored pref.
-			theme.applySiteDefault(config.data.theme_default ?? 'system');
+			const darkOn = Boolean(
+				config.data.features?.dark_mode && config.data.header_show_toggle
+			);
+			theme.setDarkModeEnabled(darkOn);
+			if (darkOn) {
+				theme.applySiteDefault(config.data.theme_default ?? 'light');
+			}
 
 			// Non-blocking setup (doesn't need auth or cart) — each init
 			// no-ops when its ID is empty. Order is intentional: GTM first
@@ -481,7 +490,7 @@
 						<a href={link.url} class="site-header__nav-link" class:is-accent={link.accent}>{link.label}</a>
 					{/if}
 				{/each}
-				{#if config.data.header_show_toggle}
+				{#if themeToggleVisible}
 					<span class:is-accent-toggle={config.data.header_toggle_accent}>
 						<ThemeToggle />
 					</span>

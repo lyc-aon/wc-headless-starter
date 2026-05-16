@@ -67,7 +67,7 @@
 {:else if showAlternating}
 	<section class="split" class:is-v-compact={spacing_v === 'compact'} class:is-v-spacious={spacing_v === 'spacious'} class:is-h-compact={spacing_h === 'compact'} class:is-h-spacious={spacing_h === 'spacious'}>
 		{#if config.title}
-			<p class="split__label wchs-section-heading" class:is-centered={center_header}>{config.title}</p>
+			<h2 class="split__label wchs-section-heading" class:is-centered={center_header}>{config.title}</h2>
 		{/if}
 		<div class="split__list">
 			{#each config.items as item, i}

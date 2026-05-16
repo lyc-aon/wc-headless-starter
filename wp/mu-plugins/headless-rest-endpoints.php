@@ -120,16 +120,9 @@ function wchs_enrich_split_value_module_images( array $mods ): array {
  * @param array<int, array<string, mixed>> $mods
  * @return array<int, array<string, mixed>>
  */
-function wchs_homepage_ensure_feature_highlights_module( array $mods ): array {
-	foreach ( $mods as $m ) {
-		if ( is_array( $m ) && ( $m['type'] ?? '' ) === 'feature_highlights' ) {
-			return $mods;
-		}
-	}
-	if ( ! class_exists( '\\WCHS\\Admin\\AdminPage' ) ) {
-		return $mods;
-	}
-	for ( $i = 0, $n = count( $mods ); $i < $n; $i++ ) {
+function wchs_homepage_feature_highlights_insert_index( array $mods ): int {
+	$n = count( $mods );
+	for ( $i = 0; $i < $n; $i++ ) {
 		$m = $mods[ $i ] ?? null;
 		if ( ! is_array( $m ) || ( $m['type'] ?? '' ) !== 'split_value' ) {
 			continue;
@@ -143,30 +136,136 @@ function wchs_homepage_ensure_feature_highlights_module( array $mods ): array {
 			}
 			break;
 		}
-		if ( $j >= $n || ! is_array( $mods[ $j ] ?? null ) || ( $mods[ $j ]['type'] ?? '' ) !== 'product_slider' ) {
-			continue;
+		if ( $j < $n && is_array( $mods[ $j ] ?? null ) && ( $mods[ $j ]['type'] ?? '' ) === 'product_slider' ) {
+			return $j;
 		}
-		$defaults = \WCHS\Admin\AdminPage::homepage_defaults();
-		$seed_row = null;
-		foreach ( (array) ( $defaults['modules'] ?? [] ) as $dm ) {
-			if ( is_array( $dm ) && ( $dm['type'] ?? '' ) === 'feature_highlights' ) {
-				$seed_row = $dm;
-				break;
-			}
+	}
+	for ( $i = 0; $i < $n; $i++ ) {
+		if ( is_array( $mods[ $i ] ?? null ) && ( $mods[ $i ]['type'] ?? '' ) === 'product_slider' ) {
+			return $i;
 		}
-		if ( ! $seed_row ) {
+	}
+	return -1;
+}
+
+function wchs_homepage_ensure_feature_highlights_module( array $mods ): array {
+	foreach ( $mods as $m ) {
+		if ( is_array( $m ) && ( $m['type'] ?? '' ) === 'feature_highlights' ) {
 			return $mods;
 		}
-		$seed = json_decode( wp_json_encode( $seed_row ), true );
-		if ( ! is_array( $seed ) ) {
-			return $mods;
-		}
-		if ( empty( $seed['id'] ) || ! preg_match( '/^[a-z0-9]{8}$/', (string) $seed['id'] ) ) {
-			$seed['id'] = substr( str_replace( '-', '', wp_generate_uuid4() ), 0, 8 );
-		}
-		array_splice( $mods, $j, 0, [ $seed ] );
+	}
+	if ( ! class_exists( '\\WCHS\\Admin\\AdminPage' ) ) {
 		return $mods;
 	}
+	$j = wchs_homepage_feature_highlights_insert_index( $mods );
+	if ( $j < 0 ) {
+		return $mods;
+	}
+	$defaults = \WCHS\Admin\AdminPage::homepage_defaults();
+	$seed_row = null;
+	foreach ( (array) ( $defaults['modules'] ?? [] ) as $dm ) {
+		if ( is_array( $dm ) && ( $dm['type'] ?? '' ) === 'feature_highlights' ) {
+			$seed_row = $dm;
+			break;
+		}
+	}
+	if ( ! $seed_row ) {
+		return $mods;
+	}
+	$seed = json_decode( wp_json_encode( $seed_row ), true );
+	if ( ! is_array( $seed ) ) {
+		return $mods;
+	}
+	if ( empty( $seed['id'] ) || ! preg_match( '/^[a-z0-9]{8}$/', (string) $seed['id'] ) ) {
+		$seed['id'] = substr( str_replace( '-', '', wp_generate_uuid4() ), 0, 8 );
+	}
+	array_splice( $mods, $j, 0, [ $seed ] );
+	return $mods;
+}
+
+/**
+ * Insert default order_handling immediately before the first accordion module.
+ *
+ * @param array<int, array<string, mixed>> $mods
+ * @return array<int, array<string, mixed>>
+ */
+function wchs_homepage_ensure_order_handling_module( array $mods ): array {
+	foreach ( $mods as $m ) {
+		if ( is_array( $m ) && ( $m['type'] ?? '' ) === 'order_handling' ) {
+			return $mods;
+		}
+	}
+	if ( ! class_exists( '\\WCHS\\Admin\\AdminPage' ) ) {
+		return $mods;
+	}
+	$acc_idx = -1;
+	for ( $i = 0, $n = count( $mods ); $i < $n; $i++ ) {
+		if ( is_array( $mods[ $i ] ?? null ) && ( $mods[ $i ]['type'] ?? '' ) === 'accordion' ) {
+			$acc_idx = $i;
+			break;
+		}
+	}
+	if ( $acc_idx < 0 ) {
+		return $mods;
+	}
+	$defaults = \WCHS\Admin\AdminPage::homepage_defaults();
+	$seed_row = null;
+	foreach ( (array) ( $defaults['modules'] ?? [] ) as $dm ) {
+		if ( is_array( $dm ) && ( $dm['type'] ?? '' ) === 'order_handling' ) {
+			$seed_row = $dm;
+			break;
+		}
+	}
+	if ( ! $seed_row ) {
+		$seed_row = [
+			'type'          => 'order_handling',
+			'visibility'    => 'all',
+			'spacing_v'     => 'normal',
+			'spacing_h'     => 'normal',
+			'center_header' => true,
+			'config'        => [
+				'badge_text'    => 'Our Process',
+				'headline'      => 'How Every Order Is Handled',
+				'subheadline'   => 'From verification to delivery, we ensure each step meets our highest standards.',
+				'steps'         => [
+					[
+						'variant'     => 'verified',
+						'headline'    => 'Verified Batches',
+						'description' => 'Every batch undergoes rigorous quality control and verification before release.',
+					],
+					[
+						'variant'     => 'lab',
+						'headline'    => '3rd Party Testing',
+						'description' => 'Independent laboratory testing ensures purity and consistency you can trust.',
+					],
+					[
+						'variant'     => 'shipping',
+						'headline'    => 'Ships Same Day',
+						'description' => 'Discreetly packaged and dispatched within 24 hours from our U.S. facility.',
+					],
+					[
+						'variant'     => 'support',
+						'headline'    => '24/7 Support',
+						'description' => 'Round-the-clock customer service for any questions before or after your order.',
+					],
+				],
+				'metrics_title' => 'Quality Metrics',
+				'metrics'       => [
+					[ 'value' => '99.8%', 'label' => 'Batch Accuracy' ],
+					[ 'value' => '100%', 'label' => 'Verified Testing' ],
+					[ 'value' => '24/7', 'label' => 'Support Response' ],
+				],
+			],
+		];
+	}
+	$seed = json_decode( wp_json_encode( $seed_row ), true );
+	if ( ! is_array( $seed ) ) {
+		return $mods;
+	}
+	if ( empty( $seed['id'] ) || ! preg_match( '/^[a-z0-9]{8}$/', (string) $seed['id'] ) ) {
+		$seed['id'] = substr( str_replace( '-', '', wp_generate_uuid4() ), 0, 8 );
+	}
+	array_splice( $mods, $acc_idx, 0, [ $seed ] );
 	return $mods;
 }
 
@@ -821,6 +920,7 @@ function wchs_rest_config( \WP_REST_Request $request ) {
 	};
 	$homepage['modules'] = $_migrate_mods( $homepage['modules'] ?? [] );
 	$homepage['modules'] = wchs_homepage_ensure_feature_highlights_module( $homepage['modules'] );
+	$homepage['modules'] = wchs_homepage_ensure_order_handling_module( $homepage['modules'] );
 
 	// Merge site defaults + per-module overrides into a `resolved` block on
 	// each module. SPA components read module.resolved instead of
@@ -861,6 +961,31 @@ function wchs_rest_config( \WP_REST_Request $request ) {
 	}
 	$pdp            = \WCHS\Admin\AdminPage::get_pdp_config();
 	$pdp['modules'] = $_resolve_mods( $_migrate_mods( $pdp['modules'] ?? [] ) );
+	if ( function_exists( 'wchs_cro_cart_cross_sell_default_exclude_slugs' ) ) {
+		$slide = is_array( $pdp['slide_cart'] ?? null ) ? $pdp['slide_cart'] : [];
+		$slide['cross_sell_exclude_slugs'] = array_values(
+			array_unique(
+				array_merge(
+					wchs_cro_cart_cross_sell_default_exclude_slugs(),
+					(array) ( $slide['cross_sell_exclude_slugs'] ?? [] )
+				)
+			)
+		);
+		if ( function_exists( 'wchs_cro_cart_cross_sell_excluded_product_ids' ) ) {
+			$slide['cross_sell_exclude_product_ids'] = array_values(
+				array_unique(
+					array_map(
+						'intval',
+						array_merge(
+							(array) ( $slide['cross_sell_exclude_product_ids'] ?? [] ),
+							wchs_cro_cart_cross_sell_excluded_product_ids()
+						)
+					)
+				)
+			);
+		}
+		$pdp['slide_cart'] = $slide;
+	}
 	$shop_cfg       = \WCHS\Admin\AdminPage::get_shop_config();
 	$shop_cfg['modules'] = $_resolve_mods( $_migrate_mods( $shop_cfg['modules'] ?? [] ) );
 	if ( ! isset( $shop_cfg['spacing_h'] ) && isset( $shop_cfg['edge_to_edge'] ) ) {
@@ -894,7 +1019,7 @@ function wchs_rest_config( \WP_REST_Request $request ) {
 		'shipping_free_threshold' => $shipping_free_threshold,
 		'features'        => [
 			'guest_checkout' => (bool) ( 'yes' === get_option( 'woocommerce_enable_guest_checkout', 'yes' ) ),
-			'dark_mode'      => true,
+			'dark_mode'      => false,
 			'pretext'        => true,
 		],
 		'version'         => '0.1.0',

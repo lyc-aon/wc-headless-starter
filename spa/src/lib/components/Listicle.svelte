@@ -111,6 +111,9 @@
 						<p class="listicle__eyebrow listicle__hero-eyebrow">{config.section_eyebrow.trim()}</p>
 					{/if}
 					<div class="listicle__hero-grid">
+						{#if config.headline?.trim()}
+							<h2 class="listicle__headline listicle__hero-headline">{config.headline.trim()}</h2>
+						{/if}
 						<div class="listicle__hero-media">
 							{#if config.hero_image?.trim()}
 								<img
@@ -123,9 +126,6 @@
 							{/if}
 						</div>
 						<div class="listicle__hero-copy">
-						{#if config.headline?.trim()}
-							<h2 class="listicle__headline">{config.headline.trim()}</h2>
-						{/if}
 						{#if introBody}
 							<div class="listicle__intro listicle__prose">{@html introBody}</div>
 						{/if}
@@ -238,32 +238,42 @@
 	.listicle__hero-grid {
 		display: grid;
 		grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+		grid-template-rows: auto 1fr;
+		grid-template-areas:
+			'media headline'
+			'media copy';
 		gap: clamp(28px, 4vw, 56px);
 		align-items: stretch;
 	}
 
+	.listicle__hero-headline {
+		grid-area: headline;
+	}
+
 	.listicle__hero-media {
+		grid-area: media;
 		min-width: 0;
 		border-radius: 14px;
 		overflow: hidden;
 		background: var(--bg-muted);
-		min-height: clamp(300px, 42vw, 440px);
+		min-height: clamp(320px, 44vw, 480px);
 	}
 	.listicle__hero-media img {
 		display: block;
 		width: 100%;
 		height: 100%;
-		min-height: clamp(300px, 42vw, 440px);
+		min-height: clamp(320px, 44vw, 480px);
 		object-fit: cover;
 	}
 	.listicle__hero-placeholder {
 		width: 100%;
-		min-height: clamp(300px, 42vw, 440px);
+		min-height: clamp(320px, 44vw, 480px);
 		aspect-ratio: 5 / 4;
 		background: color-mix(in srgb, var(--accent) 8%, var(--bg-muted) 92%);
 	}
 
 	.listicle__hero-copy {
+		grid-area: copy;
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
@@ -461,35 +471,75 @@
 	}
 
 	@media (max-width: 800px) {
+		.listicle__hero-eyebrow {
+			text-align: center;
+		}
+
 		.listicle__hero-grid {
 			grid-template-columns: 1fr;
+			grid-template-rows: auto;
+			grid-template-areas:
+				'headline'
+				'media'
+				'copy';
+			gap: 20px;
+			justify-items: center;
+			text-align: center;
 		}
+
+		.listicle__hero-headline,
+		.listicle__headline {
+			max-width: none;
+			width: 100%;
+		}
+
 		.listicle__hero-media {
-			order: -1;
-			min-height: clamp(240px, 56vw, 360px);
+			width: 100%;
+			min-height: clamp(280px, 68vw, 420px);
 		}
 		.listicle__hero-media img,
 		.listicle__hero-placeholder {
-			min-height: clamp(240px, 56vw, 360px);
+			min-height: clamp(280px, 68vw, 420px);
 		}
+
 		.listicle__hero-copy {
 			justify-content: flex-start;
+			align-items: center;
 			min-height: 0;
+			width: 100%;
+			text-align: center;
 		}
-		.listicle__headline {
-			max-width: none;
+
+		.listicle__intro {
+			max-width: 36rem;
+			margin-left: auto;
+			margin-right: auto;
 		}
+
+		.listicle__cta-wrap {
+			text-align: center;
+			width: 100%;
+		}
+
 		.listicle__row,
 		.listicle__row--media-first {
-			grid-template-columns: 1fr;
+			display: flex;
+			flex-direction: column;
+			gap: 20px;
 		}
-		.listicle__row--media-first .listicle__copy,
+
+		.listicle__row .listicle__media,
 		.listicle__row--media-first .listicle__media {
-			order: unset;
+			order: 0;
+			width: 100%;
 		}
-		.listicle__media {
-			order: -1;
+
+		.listicle__row .listicle__copy,
+		.listicle__row--media-first .listicle__copy {
+			order: 1;
+			width: 100%;
 		}
+
 		.listicle__point-title {
 			max-width: none;
 		}

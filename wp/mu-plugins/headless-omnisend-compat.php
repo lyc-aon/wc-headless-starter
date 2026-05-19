@@ -151,11 +151,11 @@ add_action( 'woocommerce_thankyou', function ( $order_id ) {
 			'$productID' => (string) $pid,
 			'$title'     => $item->get_name(),
 			'$quantity'  => $qty,
-			'$price'     => (int) round( ( $line_total / $qty ) * 100 ),
+			'$price'     => round( $line_total / $qty, 4 ),
 		];
 	}
 
-	$total   = (int) round( (float) $order->get_total() * 100 );
+	$total   = round( (float) $order->get_total(), 4 );
 	$email   = $order->get_billing_email();
 	$order_j = wp_json_encode( [
 		'$orderID'    => (string) $order_id,

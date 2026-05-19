@@ -33,13 +33,14 @@ defined( 'ABSPATH' ) || exit;
 
 define( 'WCHS_DS_DIR', __DIR__ . '/wchs-design-system' );
 define( 'WCHS_DS_URL', WPMU_PLUGIN_URL . '/wchs-design-system' );
-define( 'WCHS_DS_VERSION', '1.0.0' );
+define( 'WCHS_DS_VERSION', '1.0.3' );
 
 require_once WCHS_DS_DIR . '/src/Assets.php';
 require_once WCHS_DS_DIR . '/src/ThemeSync.php';
 require_once WCHS_DS_DIR . '/src/ToggleRenderer.php';
 require_once WCHS_DS_DIR . '/src/HeaderRenderer.php';
 require_once WCHS_DS_DIR . '/src/WcOverrides.php';
+require_once WCHS_DS_DIR . '/src/CheckoutEnhancements.php';
 
 ( new \WCHS\DesignSystem\Assets() )->register();
 ( new \WCHS\DesignSystem\ThemeSync() )->register();
@@ -47,3 +48,4 @@ require_once WCHS_DS_DIR . '/src/WcOverrides.php';
 // ( new \WCHS\DesignSystem\ToggleRenderer() )->register();
 ( new \WCHS\DesignSystem\HeaderRenderer() )->register();
 ( new \WCHS\DesignSystem\WcOverrides() )->register();
+( new \WCHS\DesignSystem\CheckoutEnhancements() )->register();

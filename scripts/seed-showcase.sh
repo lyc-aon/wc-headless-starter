@@ -8,6 +8,7 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ASSET_DIR="$ROOT/docs/assets/showcase/generated"
 
 cd "$ROOT"
+COMPOSE="$SCRIPT_DIR/wchs-compose.sh"
 
 if [[ ! -f "$ROOT/.env" ]]; then
   echo "error: $ROOT/.env not found. Copy .env.example to .env and fill in values." >&2
@@ -58,10 +59,10 @@ for asset in "${required_assets[@]}"; do
 done
 
 wp() {
-  docker compose exec -T -u 33:33 -e WCHS_SHOWCASE_SPA_ORIGIN="$WCHS_SHOWCASE_SPA_ORIGIN" wpcli php -d memory_limit=1024M /usr/local/bin/wp "$@"
+  "$COMPOSE" exec -T -u 33:33 -e WCHS_SHOWCASE_SPA_ORIGIN="$WCHS_SHOWCASE_SPA_ORIGIN" wpcli php -d memory_limit=1024M /usr/local/bin/wp "$@"
 }
 
-if ! docker compose ps --services --filter status=running | grep -qx wpcli; then
+if ! "$COMPOSE" ps --services --filter status=running | grep -qx wpcli; then
   echo "error: wpcli container is not running. Run ./scripts/up.sh first." >&2
   exit 1
 fi
@@ -89,9 +90,9 @@ if [[ "${WCHS_SHOWCASE_KEEP_PLUGINS:-}" != "1" ]]; then
   fi
 fi
 
-docker compose exec -T -u 0:0 wpcli sh -c 'rm -rf /tmp/wchs-showcase-assets && mkdir -p /tmp/wchs-showcase-assets'
-docker compose cp "$ASSET_DIR/." wpcli:/tmp/wchs-showcase-assets/
-docker compose cp "$ROOT/scripts/seed-showcase.php" wpcli:/tmp/wchs-showcase-seed.php
+"$COMPOSE" exec -T -u 0:0 wpcli sh -c 'rm -rf /tmp/wchs-showcase-assets && mkdir -p /tmp/wchs-showcase-assets'
+"$COMPOSE" cp "$ASSET_DIR/." wpcli:/tmp/wchs-showcase-assets/
+"$COMPOSE" cp "$ROOT/scripts/seed-showcase.php" wpcli:/tmp/wchs-showcase-seed.php
 
 wp eval-file /tmp/wchs-showcase-seed.php
 

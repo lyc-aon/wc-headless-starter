@@ -8,10 +8,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
-- Upstream GitHub Actions deploy is manual-only. Push-triggered production
-  deploys belong in client-owned, single-site forks with repo-local secrets.
-- Deployment docs now separate shared runtime code from site-specific deploy
-  ownership and rollback procedure.
+- This fork is documented as the Alyve-only deployment repo. Pushes to `main`
+  deploy `alyvepeptides.com` through fork-local `ALYVE_SG_*` secrets.
+- Deployment docs now warn against adding unrelated client sites to this fork's
+  workflow.
 
 ## [1.0.0] - 2026-05-01
 

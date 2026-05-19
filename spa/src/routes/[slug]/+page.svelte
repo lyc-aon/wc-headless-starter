@@ -12,16 +12,27 @@
 	import Gallery from '$lib/components/Gallery.svelte';
 	import CategoryGrid from '$lib/components/CategoryGrid.svelte';
 	import SplitFeatures from '$lib/components/SplitFeatures.svelte';
+	import SplitValue from '$lib/components/SplitValue.svelte';
+	import FeatureHighlights from '$lib/components/FeatureHighlights.svelte';
+	import OrderHandling from '$lib/components/OrderHandling.svelte';
 	import ShopGrid from '$lib/components/ShopGrid.svelte';
 	import ContactForm from '$lib/components/ContactForm.svelte';
 	import CTA from '$lib/components/CTA.svelte';
 	import Spacer from '$lib/components/Spacer.svelte';
 	import LogoStrip from '$lib/components/LogoStrip.svelte';
 	import Video from '$lib/components/Video.svelte';
+	import Listicle from '$lib/components/Listicle.svelte';
+	import PromoOffer from '$lib/components/PromoOffer.svelte';
+	import ReviewsListicle from '$lib/components/ReviewsListicle.svelte';
+	import ListicleFaqs from '$lib/components/ListicleFaqs.svelte';
 	import SEO from '$lib/components/SEO.svelte';
 
 	const pageData = $derived(
 		config.data.pages?.find(p => p.slug === (page.params.slug ?? '')) ?? null
+	);
+
+	const hidePageTitle = $derived(
+		(pageData?.modules?.filter(isModuleVisibleNow) ?? [])[0]?.type === 'listicle'
 	);
 
 	// Derive a description from the first text/gallery/trust module if
@@ -75,8 +86,8 @@
 		});
 		// FAQPage — only if the page has accordion modules
 		const faqItems = (pageData.modules ?? [])
-			.filter(m => m.type === 'accordion')
-			.flatMap(m => ((m.config as any).items ?? []));
+			.filter((m) => m.type === 'accordion' || m.type === 'listicle_faqs')
+			.flatMap((m) => ((m.config as any).items ?? []));
 		if (faqItems.length > 0) {
 			out.push({
 				'@context': 'https://schema.org',
@@ -103,8 +114,10 @@
 
 <AccessGate requires="products">
 {#if pageData}
-	<article class="content-page">
-		<h1 class="content-page__title">{pageData.title}</h1>
+	<article class="content-page" class:content-page--listicle={hidePageTitle}>
+		{#if !hidePageTitle}
+			<h1 class="content-page__title">{pageData.title}</h1>
+		{/if}
 
 		{#each pageData.modules.filter(isModuleVisibleNow) as mod}
 			<div class="wchs-mod-wrap" data-module-type={mod.type} data-module-id={mod.id ?? ''} style="display: contents">
@@ -112,18 +125,32 @@
 					<HomepageProductSlider config={mod.config} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
 				{:else if mod.type === 'review_slider'}
 					<ReviewSlider title={mod.config.title || 'What customers say'} photos_only={mod.config.photos_only || false} product_ids={mod.config.product_ids || []} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
+				{:else if mod.type === 'order_handling'}
+					<OrderHandling config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header ?? true} />
 				{:else if mod.type === 'accordion'}
 					<Accordion config={mod.config} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
 				{:else if mod.type === 'trust_bar'}
 					<TrustBar config={mod.config} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} resolved={mod.resolved} />
+				{:else if mod.type === 'listicle'}
+					<Listicle config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} />
+				{:else if mod.type === 'promo_offer'}
+					<PromoOffer config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} />
+				{:else if mod.type === 'reviews_listicle'}
+					<ReviewsListicle config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} />
+				{:else if mod.type === 'listicle_faqs'}
+					<ListicleFaqs config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} />
 				{:else if mod.type === 'text_block'}
-					<TextBlock config={mod.config} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
+					<TextBlock config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
 				{:else if mod.type === 'gallery'}
 					<Gallery config={mod.config} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
 				{:else if mod.type === 'category_grid'}
 					<CategoryGrid config={mod.config} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
 				{:else if mod.type === 'split_features'}
-					<SplitFeatures config={mod.config} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
+					<SplitFeatures config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
+				{:else if mod.type === 'split_value'}
+					<SplitValue config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} />
+				{:else if mod.type === 'feature_highlights'}
+					<FeatureHighlights config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} />
 				{:else if mod.type === 'shop_grid'}
 					<ShopGrid title={mod.config.title || 'Shop'} category={mod.config.category} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
 				{:else if mod.type === 'contact_form'}
@@ -156,6 +183,42 @@
 		max-width: 1440px;
 		margin: 0 auto;
 		padding: 56px 28px 64px;
+	}
+	.content-page--listicle {
+		/* Half-padding per block → 64px between sections (32px + 32px). */
+		--wchs-page-section-half: 32px;
+		--wchs-page-section-bottom: 72px;
+		max-width: none;
+		padding: 0 0 var(--wchs-page-section-bottom);
+		display: flex;
+		flex-direction: column;
+	}
+
+	.content-page--listicle > :global(section.listicle),
+	.content-page--listicle > :global(section.promo-offer),
+	.content-page--listicle > :global(section.reviews-listicle),
+	.content-page--listicle > :global(section.listicle-faqs),
+	.content-page--listicle > :global(section.compare) {
+		--mod-pt: var(--wchs-page-section-half);
+		--mod-pb: var(--wchs-page-section-half);
+	}
+
+	.content-page--listicle > :global(section:first-child) {
+		--mod-pt: clamp(44px, 6vw, 64px);
+	}
+
+	.content-page--listicle :global(.listicle__cta),
+	.content-page--listicle :global(.promo-offer__cta),
+	.content-page--listicle :global(a.cta),
+	.content-page--listicle :global(button.cta) {
+		border-radius: 14px;
+	}
+
+	@media (max-width: 640px) {
+		.content-page--listicle {
+			--wchs-page-section-half: 24px;
+			--wchs-page-section-bottom: 48px;
+		}
 	}
 	.content-page__title {
 		font-family: var(--font-heading, var(--font-sans));

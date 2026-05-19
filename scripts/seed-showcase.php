@@ -353,14 +353,15 @@ $settings['smtp']                   = [
 ];
 $settings['turnstile_site_key']     = '';
 $settings['turnstile_secret_key']   = '';
-$settings['theme_default']          = 'system';
+$settings['theme_default']          = 'light';
 $settings['header_links']           = [
 	[ 'label' => 'Shop', 'url' => '/shop', 'display' => 'text', 'icon' => '', 'accent' => false, 'mobile_pin' => false ],
+	[ 'label' => 'COA Library', 'url' => '/coa-library', 'display' => 'text', 'icon' => '', 'accent' => false, 'mobile_pin' => false ],
 	[ 'label' => 'About', 'url' => '/about', 'display' => 'text', 'icon' => '', 'accent' => false, 'mobile_pin' => false ],
 	[ 'label' => 'FAQ', 'url' => '/faq', 'display' => 'text', 'icon' => '', 'accent' => false, 'mobile_pin' => false ],
 	[ 'label' => 'Account', 'url' => '/account', 'display' => 'icon', 'icon' => 'user', 'accent' => true, 'mobile_pin' => false ],
 ];
-$settings['header_show_toggle']       = true;
+$settings['header_show_toggle']       = false;
 $settings['header_toggle_accent']     = true;
 $settings['header_cart_accent']       = true;
 $settings['header_borderless']        = false;
@@ -494,6 +495,7 @@ $homepage     = [
 			'spacing_h'     => 'normal',
 			'center_header' => false,
 			'config'        => [
+				'layout' => 'alternating',
 				'title' => 'Launch with content that already looks like a store',
 				'items' => [
 					[

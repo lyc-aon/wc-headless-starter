@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
+	import { page } from '$app/state';
 	import { cart } from '$lib/wc/cart.svelte';
 	import { auth } from '$lib/wc/auth.svelte';
 	import { primeSession } from '$lib/wc/store-api';
@@ -26,6 +27,8 @@
 	import { loadFont, HERO_FONTS } from '$lib/hero-fonts';
 	import type { HeroFontKey } from '$lib/config.svelte';
 	import { applyProductCardTokens } from '$lib/product-card-tokens';
+	import AnnouncementBar from '$lib/components/AnnouncementBar.svelte';
+	import HeaderSearch from '$lib/components/HeaderSearch.svelte';
 	import '$lib/styles/header.css';
 
 	let { children } = $props();
@@ -38,6 +41,15 @@
 	// go into the hamburger drawer. When mobile_hamburger_side='off',
 	// all items render inline as before (no drawer, current behavior).
 	const MAX_PINNED = 3;
+
+	const themeToggleVisible = $derived(
+		Boolean(config.data.features?.dark_mode && config.data.header_show_toggle)
+	);
+
+	const logoOnlyHeader = $derived(
+		page.url.pathname.replace(/\/$/, '') === '/why-alyve'
+	);
+
 	type DrawerEntry =
 		| { kind: 'link'; link: import('$lib/config.svelte').HeaderLink }
 		| { kind: 'toggle' }
@@ -49,7 +61,7 @@
 		for (const link of config.data.header_links) {
 			if (link.mobile_pin) out.push({ kind: 'link', link });
 		}
-		if (config.data.header_show_toggle && config.data.header_toggle_mobile_pin) {
+		if (themeToggleVisible && config.data.header_toggle_mobile_pin) {
 			out.push({ kind: 'toggle' });
 		}
 		if (config.data.header_cart_mobile_pin) out.push({ kind: 'cart' });
@@ -62,7 +74,7 @@
 		for (const link of config.data.header_links) {
 			if (link.mobile_pin) all.push({ kind: 'link', link });
 		}
-		if (config.data.header_show_toggle && config.data.header_toggle_mobile_pin) {
+		if (themeToggleVisible && config.data.header_toggle_mobile_pin) {
 			all.push({ kind: 'toggle' });
 		}
 		if (config.data.header_cart_mobile_pin) all.push({ kind: 'cart' });
@@ -75,7 +87,7 @@
 		for (const link of config.data.header_links) {
 			if (!link.mobile_pin) out.push({ kind: 'link', link });
 		}
-		if (config.data.header_show_toggle && !config.data.header_toggle_mobile_pin) {
+		if (themeToggleVisible && !config.data.header_toggle_mobile_pin) {
 			out.push({ kind: 'toggle' });
 		}
 		if (!config.data.header_cart_mobile_pin) out.push({ kind: 'cart' });
@@ -120,7 +132,7 @@
 				report();
 				requestAnimationFrame(report);
 			});
-			[60, 180, 420, 900, 1500].forEach(delay => {
+			[60, 180, 420, 900, 1500, 3000, 5000].forEach(delay => {
 				timers.push(setTimeout(report, delay));
 			});
 		};
@@ -165,7 +177,7 @@
 		// in app.html already set data-theme before first paint. This call
 		// syncs the reactive Svelte store with the DOM attribute so toggle
 		// and cross-tab listeners work. See: theme flash prevention rules.
-		theme.init();
+		theme.init('light');
 
 		// Async init — fire and forget. Every step is resilient:
 		// config.load() has its own try/catch (always sets ready=true).
@@ -175,9 +187,13 @@
 			await config.load();
 			config.initPreviewMode();
 
-			// Re-resolve theme now that the admin-configured default is known.
-			// No-op if the visitor has an explicit stored pref.
-			theme.applySiteDefault(config.data.theme_default ?? 'system');
+			const darkOn = Boolean(
+				config.data.features?.dark_mode && config.data.header_show_toggle
+			);
+			theme.setDarkModeEnabled(darkOn);
+			if (darkOn) {
+				theme.applySiteDefault(config.data.theme_default ?? 'light');
+			}
 
 			// Non-blocking setup (doesn't need auth or cart) — each init
 			// no-ops when its ID is empty. Order is intentional: GTM first
@@ -276,13 +292,21 @@
 			// inject, idempotent by data-wchs-id.
 			for (const s of config.data.active_scripts ?? []) {
 				if (!s.surfaces?.includes('spa')) continue;
-				if (document.querySelector(`script[data-wchs-id="${s.id}"]`)) continue;
+				const target = s.placement === 'body_end' ? document.body : document.head;
+				const bootId = `${s.id}__boot`;
+				if (s.inline && !document.querySelector(`script[data-wchs-id="${bootId}"]`)) {
+					const boot = document.createElement('script');
+					boot.type = 'text/javascript';
+					boot.dataset.wchsId = bootId;
+					boot.textContent = s.inline;
+					target.appendChild(boot);
+				}
+				if (!s.src || document.querySelector(`script[data-wchs-id="${s.id}"]`)) continue;
 				const el = document.createElement('script');
 				el.src = s.src;
 				el.dataset.wchsId = s.id;
 				if (s.async) el.async = true;
 				if (s.defer) el.defer = true;
-				const target = s.placement === 'body_end' ? document.body : document.head;
 				target.appendChild(el);
 			}
 
@@ -396,11 +420,36 @@
 		if (e.key === 'Escape') drawerOpen = false;
 	}
 
+	function syncDrawerTop() {
+		const stack = document.querySelector('.site-header-stack');
+		if (!stack) return;
+		document.documentElement.style.setProperty(
+			'--wchs-header-stack-height',
+			`${stack.getBoundingClientRect().bottom}px`
+		);
+	}
+
+	const hasAnnouncementBar = $derived(
+		Boolean(config.data.announcement_bar_enabled && (config.data.announcement_bar_items?.length ?? 0) > 0)
+	);
+
 	$effect(() => {
 		const isAdmin = auth.isAdmin;
 		const hasModeBanner = isAdmin && config.data.access_mode !== 3;
 		document.body.classList.toggle('has-admin-bar', isAdmin);
 		document.body.classList.toggle('has-mode-banner', hasModeBanner);
+		document.body.classList.toggle('has-announcement-bar', hasAnnouncementBar);
+	});
+
+	$effect(() => {
+		if (!drawerOpen) return;
+		syncDrawerTop();
+		window.addEventListener('resize', syncDrawerTop);
+		window.addEventListener('scroll', syncDrawerTop, { passive: true });
+		return () => {
+			window.removeEventListener('resize', syncDrawerTop);
+			window.removeEventListener('scroll', syncDrawerTop);
+		};
 	});
 
 	function bumpCart() {
@@ -423,15 +472,17 @@
 {:else}
 	<AdminBar />
 
-	<header
-		class="site-header"
-		data-hamburger-side={config.data.mobile_hamburger_side}
-		data-logo-size={config.data.logo_url ? (config.data.logo_size ?? 'standard') : 'none'}
-		data-brand-position={config.data.brand_position ?? 'left'}
-		class:has-admin-bar={auth.isAdmin}
-		class:site-header--inverted={config.data.header_inverted}
-		class:site-header--borderless={config.data.header_borderless}
-	>
+	<div class="site-header-stack" class:has-admin-bar={auth.isAdmin}>
+		<AnnouncementBar />
+		<header
+			class="site-header"
+			data-hamburger-side={config.data.mobile_hamburger_side}
+			data-logo-size={config.data.logo_url ? (config.data.logo_size ?? 'standard') : 'none'}
+			data-brand-position={logoOnlyHeader ? 'left' : (config.data.brand_position ?? 'left')}
+			class:site-header--inverted={config.data.header_inverted}
+			class:site-header--borderless={config.data.header_borderless}
+			class:site-header--logo-only={logoOnlyHeader}
+		>
 		<a class="site-header__brand" href="/">
 			{#if config.data.logo_url}
 				<img
@@ -454,47 +505,57 @@
 			{/if}
 		</a>
 
+		{#if !logoOnlyHeader}
 		<nav class="site-header__nav">
 			<!-- Full inline nav — renders on desktop always, and on mobile
 			     when mobile_hamburger_side='off'. Hidden by CSS when the
 			     hamburger is active. -->
 			<div class="site-header__nav-inline">
-				{#each config.data.header_links as link}
-					{#if link.display === 'icon' || link.display === 'both'}
-						<a href={link.url} class="site-header__icon-link" class:is-accent={link.accent} aria-label={link.label}>
-							{#if link.icon && icons[link.icon]}
-								<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{@html icons[link.icon]}</svg>
-							{/if}
-							{#if link.display === 'both'}
-								<span>{link.label}</span>
-							{/if}
-						</a>
-					{:else}
-						<a href={link.url} class="site-header__nav-link" class:is-accent={link.accent}>{link.label}</a>
+				<div class="site-header__nav-menu">
+					{#each config.data.header_links as link}
+						{#if link.display === 'text'}
+							<a href={link.url} class="site-header__nav-link" class:is-accent={link.accent}>{link.label}</a>
+						{/if}
+					{/each}
+				</div>
+				<div class="site-header__nav-actions">
+					<HeaderSearch />
+					{#each config.data.header_links as link}
+						{#if link.display === 'icon' || link.display === 'both'}
+							<a href={link.url} class="site-header__icon-link" class:is-accent={link.accent} aria-label={link.label}>
+								{#if link.icon && icons[link.icon]}
+									<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{@html icons[link.icon]}</svg>
+								{/if}
+								{#if link.display === 'both'}
+									<span>{link.label}</span>
+								{/if}
+							</a>
+						{/if}
+					{/each}
+					{#if themeToggleVisible}
+						<span class:is-accent-toggle={config.data.header_toggle_accent}>
+							<ThemeToggle />
+						</span>
 					{/if}
-				{/each}
-				{#if config.data.header_show_toggle}
-					<span class:is-accent-toggle={config.data.header_toggle_accent}>
-						<ThemeToggle />
-					</span>
-				{/if}
-				<button
-					type="button"
-					class="site-header__cart"
-					class:is-accent={config.data.header_cart_accent}
-					class:is-bumping={cartBumping}
-					onclick={() => cart.toggle()}
-					aria-label="Open cart"
-				>
-					<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-					<span class="site-header__cart-count tabular-nums">{cart.itemCount}</span>
-				</button>
+					<button
+						type="button"
+						class="site-header__cart"
+						class:is-accent={config.data.header_cart_accent}
+						class:is-bumping={cartBumping}
+						onclick={() => cart.toggle()}
+						aria-label="Open cart"
+					>
+						<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+						<span class="site-header__cart-count tabular-nums">{cart.itemCount}</span>
+					</button>
+				</div>
 			</div>
 
 			<!-- Mobile pinned cluster — shows only on mobile when
 			     hamburger is active. Up to 3 items. -->
 			{#if config.data.mobile_hamburger_side !== 'off'}
 				<div class="site-header__nav-group--pinned">
+					<HeaderSearch />
 					{#each pinnedItems as entry}
 						{#if entry.kind === 'link'}
 							{#if entry.link.display === 'icon' || entry.link.display === 'both'}
@@ -534,7 +595,10 @@
 					aria-label="Open menu"
 					aria-expanded={drawerOpen}
 					aria-controls="site-drawer"
-					onclick={() => (drawerOpen = !drawerOpen)}
+					onclick={() => {
+						if (!drawerOpen) syncDrawerTop();
+						drawerOpen = !drawerOpen;
+					}}
 				>
 					<svg class="site-header__burger-open" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
 						<path d="M3 6h18M3 12h18M3 18h18"/>
@@ -545,11 +609,13 @@
 				</button>
 			{/if}
 		</nav>
+		{/if}
 	</header>
+	</div>
 
 	<!-- Mobile drawer — rendered as a sibling of the header since it's
 	     position:fixed. `hidden` attribute gates visibility. -->
-	{#if config.data.mobile_hamburger_side !== 'off'}
+	{#if config.data.mobile_hamburger_side !== 'off' && !logoOnlyHeader}
 		<div
 			class="site-header-drawer"
 			id="site-drawer"
@@ -557,7 +623,6 @@
 			aria-label="Navigation menu"
 			hidden={!drawerOpen}
 		>
-			<a class="site-header-drawer__item" href="/" onclick={() => (drawerOpen = false)}>Home</a>
 			{#each drawerItems as entry}
 				{#if entry.kind === 'link'}
 					<a
@@ -655,15 +720,18 @@
 	/* Preview mode (?preview=1) — strip artificial min-heights so the
 	   canvas artboard measures the true content size. Hero mobile floor
 	   (1010px + 530px padding) and main's calc(100vh) are the two
-	   biggest offenders; remove both only in preview, never in live. */
+	   biggest offenders; remove both only in preview, never in live.
+	   Homepage uses .hero-rx (research-motion), not .hero — include both. */
 	:global(html[data-preview] main) {
 		min-height: 0;
 	}
-	:global(html[data-preview] .hero) {
+	:global(html[data-preview] .hero),
+	:global(html[data-preview] .hero-rx) {
 		min-height: auto;
 	}
 	@media (max-width: 639px) {
-		:global(html[data-preview] .hero) {
+		:global(html[data-preview] .hero),
+		:global(html[data-preview] .hero-rx) {
 			padding-bottom: 40px;
 		}
 	}
@@ -699,10 +767,7 @@
 	:global(body.has-mode-banner) {
 		padding-top: 60px;
 	}
-	.has-admin-bar {
-		top: 32px;
-	}
-	:global(body.has-mode-banner) .site-header {
+	:global(body.has-mode-banner) .site-header-stack {
 		top: 60px;
 	}
 </style>

@@ -42,6 +42,17 @@ function wchs_head_scripts_render( string $placement ): void {
 			continue;
 		}
 
+		if ( ! empty( $s['inline'] ) ) {
+			wp_print_inline_script_tag(
+				$s['inline'],
+				[ 'data-wchs-id' => $s['id'] . '__boot' ]
+			);
+		}
+
+		if ( empty( $s['src'] ) ) {
+			continue;
+		}
+
 		$attrs = [
 			sprintf( 'src="%s"', esc_url( $s['src'] ) ),
 			sprintf( 'data-wchs-id="%s"', esc_attr( $s['id'] ) ),

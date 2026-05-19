@@ -77,9 +77,9 @@
 {#if !loading && products.length > 0}
 	<section class="homepage-module recently-viewed" class:is-edge={edge_to_edge} data-testid="recently-viewed">
 		<div class="homepage-module__head">
-			<p class="homepage-module__label">{title}</p>
+			<h2 class="homepage-module__label wchs-section-heading">{title}</h2>
 		</div>
-		<ProductSlider {products} {edge_to_edge} />
+		<ProductSlider {products} {edge_to_edge} listingSource="Recently viewed" />
 	</section>
 {/if}
 
@@ -104,9 +104,7 @@
 		padding: 0 0 20px;
 	}
 	.homepage-module__label {
-		font-size: 18px;
-		font-weight: 500;
-		letter-spacing: -0.28px;
+		line-height: 1.2;
 		margin: 0;
 	}
 </style>

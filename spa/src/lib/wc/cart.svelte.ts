@@ -278,7 +278,12 @@ class CartStore {
 		window.location.href = await this.beginCheckout();
 	}
 
-	async addItem(id: number, quantity = 1, variation: { attribute: string; value: string }[] = []) {
+	async addItem(
+		id: number,
+		quantity = 1,
+		variation: { attribute: string; value: string }[] = [],
+		analytics?: { clicked_from?: string },
+	) {
 		const beforeQuantities = new Map((this.cart?.items ?? []).map((item) => [item.key, item.quantity]));
 		await this.mutate(() =>
 			request<StoreApiCart>('/cart/add-item', { method: 'POST', body: { id, quantity, variation } })
@@ -307,9 +312,11 @@ class CartStore {
 					name: added.name,
 					price: added.prices.price,
 					currency_minor_unit: added.prices.currency_minor_unit,
+					currency_code: added.prices.currency_code,
 					quantity,
 					permalink: (added as { permalink?: string }).permalink,
 					image: added.images?.[0]?.src,
+					clicked_from: analytics?.clicked_from,
 				};
 				a.trackAddToCart(item);
 				a.trackOmnisendAddedProductToCart(item);
@@ -367,6 +374,11 @@ class CartStore {
 		if (!/\?cart=/.test(href)) {
 			await primeSession().catch(() => {});
 			href = this.checkoutUrl();
+		}
+
+		if (/\?cart=/.test(href) && this.cart?.items?.length && typeof window !== 'undefined') {
+			const { trackCustomerLabsCheckoutMade } = await import('$lib/analytics');
+			trackCustomerLabsCheckoutMade(this.cart!);
 		}
 
 		return /\?cart=/.test(href) ? href : this.cartEntryUrl();

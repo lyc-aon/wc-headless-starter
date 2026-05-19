@@ -1,0 +1,547 @@
+/**
+ * Checkout enhancements — Aura-inspired layout using WCHS tokens.
+ */
+
+body.wchs-checkout-enhanced .site-header {
+	display: none;
+}
+
+body.wchs-checkout-enhanced .wchs-shell {
+	max-width: 1280px;
+	padding-top: 20px;
+}
+
+body.wchs-checkout-enhanced .wchs-back-link,
+body.wchs-checkout-enhanced .wchs-shell > article > h1 {
+	display: none;
+}
+
+/* ── Top hero ─────────────────────────────────────────────── */
+
+.wchs-checkout-hero {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+	gap: 14px;
+	margin: 0 0 20px;
+	padding: 8px 0 4px;
+}
+
+.wchs-checkout-hero__brand {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	text-decoration: none;
+	color: var(--fg);
+}
+
+.wchs-checkout-hero__logo {
+	display: block;
+	max-width: min(200px, 52vw);
+	height: auto;
+	max-height: 56px;
+	width: auto;
+	object-fit: contain;
+}
+
+.wchs-checkout-hero__name {
+	font-size: clamp(1.5rem, 4vw, 2rem);
+	font-weight: 700;
+	letter-spacing: -0.03em;
+}
+
+.wchs-checkout-hero__badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	padding: 8px 16px 8px 10px;
+	border-radius: 999px;
+	background: color-mix(in oklch, var(--accent) 12%, var(--bg));
+	border: 1px solid color-mix(in oklch, var(--accent) 28%, var(--border));
+}
+
+.wchs-checkout-hero__avatars {
+	display: inline-flex;
+	align-items: center;
+}
+
+.wchs-checkout-hero__avatars span {
+	display: block;
+	width: 26px;
+	height: 26px;
+	margin-left: -8px;
+	border-radius: 50%;
+	border: 2px solid var(--bg);
+	background: color-mix(in oklch, var(--accent) 35%, var(--bg-muted));
+}
+
+.wchs-checkout-hero__avatars span:first-child {
+	margin-left: 0;
+}
+
+.wchs-checkout-hero__badge-text {
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	color: var(--fg);
+}
+
+.wchs-checkout-hero__trust {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: center;
+	gap: 14px 22px;
+	list-style: none;
+	margin: 4px 0 0;
+	padding: 0;
+}
+
+.wchs-checkout-hero__trust li {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+	font-weight: 500;
+	color: var(--fg-muted);
+}
+
+.wchs-checkout-icon {
+	flex-shrink: 0;
+	color: var(--accent);
+}
+
+/* ── Reservation timer ────────────────────────────────────── */
+
+.wchs-checkout-timer {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+	margin: 0 0 28px;
+	padding: 12px 18px;
+	border-radius: var(--radius-md);
+	background: color-mix(in oklch, var(--warning, #f59e0b) 10%, var(--bg));
+	border: 1px solid color-mix(in oklch, var(--warning, #f59e0b) 35%, var(--border));
+}
+
+.wchs-checkout-timer .wchs-checkout-icon {
+	color: color-mix(in oklch, var(--warning, #ea580c) 85%, var(--fg));
+}
+
+.wchs-checkout-timer__text {
+	margin: 0;
+	font-size: 14px;
+	color: var(--fg);
+	line-height: 1.4;
+}
+
+.wchs-checkout-timer__value {
+	color: var(--danger, #dc2626);
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+/* ── Form polish (Aura-like cards) ────────────────────────── */
+
+body.wchs-checkout-enhanced .woocommerce-billing-fields h3,
+body.wchs-checkout-enhanced .woocommerce-shipping-fields h3,
+body.wchs-checkout-enhanced #ship-to-different-address,
+body.wchs-checkout-enhanced #payment h3 {
+	font-size: 12px !important;
+	font-weight: 600 !important;
+	text-transform: none !important;
+	letter-spacing: -0.01em !important;
+	color: var(--fg) !important;
+	margin-bottom: 14px !important;
+}
+
+body.wchs-checkout-enhanced .woocommerce form .form-row input.input-text,
+body.wchs-checkout-enhanced .woocommerce form .form-row select,
+body.wchs-checkout-enhanced .woocommerce form .form-row textarea {
+	border-radius: var(--radius-md);
+	background: var(--bg-elevated);
+}
+
+body.wchs-checkout-enhanced #payment ul.payment_methods li {
+	margin: 0 0 10px;
+	padding: 0;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-md);
+	background: var(--bg);
+	overflow: hidden;
+}
+
+body.wchs-checkout-enhanced #payment ul.payment_methods li:last-child {
+	margin-bottom: 0;
+}
+
+body.wchs-checkout-enhanced #payment ul.payment_methods label {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	min-height: 52px;
+	padding: 12px 14px;
+	margin: 0;
+	font-size: 14px;
+	font-weight: 600;
+	text-transform: none;
+	letter-spacing: -0.01em;
+	color: var(--fg);
+}
+
+body.wchs-checkout-enhanced #payment ul.payment_methods li input[type='radio'] {
+	margin-right: 10px;
+}
+
+body.wchs-checkout-enhanced #payment ul.payment_methods li:has(input:checked) {
+	border-color: color-mix(in oklch, var(--accent) 55%, var(--border));
+	box-shadow: 0 0 0 1px color-mix(in oklch, var(--accent) 35%, transparent);
+}
+
+body.wchs-checkout-enhanced #payment div.payment_box {
+	margin: 0;
+	padding: 10px 14px 12px 42px;
+	border-top: 1px solid var(--border);
+	background: var(--bg-elevated);
+}
+
+body.wchs-checkout-enhanced #place_order {
+	border-radius: var(--radius-md);
+	min-height: 54px;
+	font-size: 13px;
+	letter-spacing: 0.06em;
+}
+
+/* ── Order summary column (Aura: card + extras stacked in right col) ── */
+
+body.wchs-checkout-enhanced #order_review {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	padding: 0;
+	background: transparent;
+	border: 0;
+}
+
+body.wchs-checkout-enhanced #order_review_heading {
+	font-size: 15px !important;
+	font-weight: 700 !important;
+	text-transform: none !important;
+	letter-spacing: -0.02em !important;
+	color: var(--fg) !important;
+	padding: 0 0 4px !important;
+	margin: 0 !important;
+}
+
+body.wchs-checkout-enhanced #order_review > table.woocommerce-checkout-review-order-table {
+	padding: 18px 18px 8px;
+	border-radius: var(--radius-md);
+	background: var(--bg-muted);
+	border: 1px solid var(--border);
+}
+
+body.wchs-checkout-enhanced #order_review > table.woocommerce-checkout-review-order-table th,
+body.wchs-checkout-enhanced #order_review > table.woocommerce-checkout-review-order-table td {
+	border-color: color-mix(in oklch, var(--border) 80%, transparent);
+}
+
+/* Payment block is rendered in the left column (see CheckoutEnhancements.php). */
+
+body.wchs-checkout-enhanced .wchs-checkout-payment-column {
+	margin-top: 8px;
+}
+
+body.wchs-checkout-enhanced .wchs-checkout-payment-column #payment.woocommerce-checkout-payment {
+	margin-top: 0;
+	padding: 0;
+	border-top: 0;
+	background: transparent;
+}
+
+body.wchs-checkout-enhanced .wchs-checkout-payment-column #payment h3 {
+	font-size: 12px !important;
+	font-weight: 600 !important;
+	text-transform: none !important;
+	letter-spacing: -0.01em !important;
+	color: var(--fg) !important;
+	margin: 0 0 14px !important;
+}
+
+/* ── Sidebar extras (under order table, still in right column) ── */
+
+.wchs-checkout-sidebar {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+
+.wchs-checkout-trust-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12px 16px;
+}
+
+.wchs-checkout-trust-grid__item {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+	gap: 8px;
+}
+
+.wchs-checkout-trust-grid__item span {
+	font-size: 10px;
+	font-weight: 700;
+	line-height: 1.25;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--fg);
+}
+
+.wchs-checkout-guarantee {
+	display: flex;
+	gap: 12px;
+	padding: 14px 16px;
+	border-radius: var(--radius-md);
+	background: color-mix(in oklch, var(--accent) 8%, var(--bg));
+	border: 1px solid color-mix(in oklch, var(--accent) 22%, var(--border));
+}
+
+.wchs-checkout-guarantee__icon .wchs-checkout-icon {
+	width: 28px;
+	height: 28px;
+	color: var(--accent);
+}
+
+.wchs-checkout-guarantee__title {
+	margin: 0 0 4px;
+	font-size: 14px;
+	font-weight: 700;
+	color: var(--fg);
+}
+
+.wchs-checkout-guarantee__text {
+	margin: 0;
+	font-size: 12px;
+	line-height: 1.5;
+	color: var(--fg-muted);
+}
+
+.wchs-checkout-reviews {
+	padding: 16px;
+	border-radius: var(--radius-md);
+	background: var(--bg);
+	border: 1px solid var(--border);
+}
+
+.wchs-checkout-reviews__head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	margin-bottom: 12px;
+}
+
+.wchs-checkout-reviews__label {
+	margin: 0;
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--fg-muted);
+}
+
+.wchs-checkout-reviews__stars {
+	display: flex;
+	gap: 2px;
+	color: #f59e0b;
+}
+
+.wchs-checkout-reviews__quote {
+	margin: 0 0 14px;
+	font-size: 13px;
+	line-height: 1.55;
+	font-style: italic;
+	color: var(--fg);
+}
+
+.wchs-checkout-reviews__author {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.wchs-checkout-reviews__avatar {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 34px;
+	height: 34px;
+	border-radius: 50%;
+	background: color-mix(in oklch, var(--accent) 18%, var(--bg-muted));
+	color: var(--accent);
+	font-size: 13px;
+	font-weight: 700;
+}
+
+.wchs-checkout-reviews__name {
+	margin: 0;
+	font-size: 13px;
+	font-weight: 700;
+	color: var(--fg);
+}
+
+.wchs-checkout-reviews__meta {
+	margin: 0;
+	font-size: 11px;
+	color: var(--fg-muted);
+}
+
+.wchs-checkout-reviews__dots {
+	display: flex;
+	justify-content: center;
+	gap: 6px;
+	margin-top: 12px;
+}
+
+.wchs-checkout-reviews__dot {
+	width: 7px;
+	height: 7px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: var(--border);
+	cursor: pointer;
+	transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.wchs-checkout-reviews__dot.is-active {
+	background: var(--accent);
+	transform: scale(1.15);
+}
+
+.wchs-checkout-payments {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 8px;
+}
+
+.wchs-checkout-payments__brand {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 44px;
+	padding: 6px 10px;
+	border-radius: 4px;
+	border: 1px solid var(--border);
+	background: var(--bg);
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	color: var(--fg-muted);
+}
+
+.wchs-checkout-shipped {
+	margin: 0;
+	text-align: center;
+	font-size: 12px;
+	color: var(--fg-muted);
+}
+
+.wchs-checkout-shipped strong {
+	color: var(--fg);
+	font-weight: 700;
+}
+
+@media (max-width: 899px) {
+	.wchs-checkout-trust-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	body.wchs-checkout-enhanced #order_review {
+		margin-top: 8px;
+	}
+}
+
+@media (min-width: 900px) {
+	/* Aura: left = forms + payment; right = order summary + trust/reviews */
+	body.wchs-checkout-enhanced form.checkout {
+		display: grid;
+		grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.9fr);
+		grid-template-areas:
+			'notices  notices'
+			'coupon   order-h'
+			'details  order'
+			'payment  order';
+		gap: 16px 48px;
+		align-items: start;
+	}
+
+	body.wchs-checkout-enhanced form.checkout > .woocommerce-notices-wrapper,
+	body.wchs-checkout-enhanced form.checkout > .woocommerce-error,
+	body.wchs-checkout-enhanced form.checkout > .woocommerce-info,
+	body.wchs-checkout-enhanced form.checkout > .woocommerce-message {
+		grid-area: notices;
+	}
+
+	body.wchs-checkout-enhanced form.checkout > .checkout_coupon,
+	body.wchs-checkout-enhanced form.checkout > .woocommerce-form-coupon,
+	body.wchs-checkout-enhanced form.checkout > .woocommerce-info.woocommerce-form-coupon-toggle {
+		grid-area: coupon;
+	}
+
+	body.wchs-checkout-enhanced form.checkout > #customer_details {
+		grid-area: details;
+	}
+
+	body.wchs-checkout-enhanced form.checkout > .wchs-checkout-payment-column {
+		grid-area: payment;
+		align-self: start;
+	}
+
+	body.wchs-checkout-enhanced form.checkout > #order_review_heading {
+		grid-area: order-h;
+		margin: 0;
+	}
+
+	body.wchs-checkout-enhanced form.checkout > #order_review {
+		grid-area: order;
+		position: sticky;
+		top: 20px;
+		align-self: start;
+	}
+
+	body.wchs-checkout-enhanced form.checkout > input[type='hidden'] {
+		display: none;
+	}
+}
+
+@media (max-width: 899px) {
+	body.wchs-checkout-enhanced form.checkout {
+		display: flex;
+		flex-direction: column;
+		gap: 20px;
+	}
+
+	body.wchs-checkout-enhanced form.checkout > #order_review_heading {
+		order: 1;
+	}
+
+	body.wchs-checkout-enhanced form.checkout > #order_review {
+		order: 2;
+	}
+
+	body.wchs-checkout-enhanced form.checkout > #customer_details {
+		order: 3;
+	}
+
+	body.wchs-checkout-enhanced form.checkout > .wchs-checkout-payment-column {
+		order: 4;
+	}
+}

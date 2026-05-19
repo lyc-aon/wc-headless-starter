@@ -17,7 +17,7 @@
 		is_in_stock?: boolean;
 	};
 
-	let { products, edge_to_edge = false }: { products: Product[]; edge_to_edge?: boolean } = $props();
+	let { products, edge_to_edge = false, listingSource = 'Slider' }: { products: Product[]; edge_to_edge?: boolean; listingSource?: string } = $props();
 
 	let viewport: HTMLElement;
 	let track: HTMLUListElement;
@@ -67,7 +67,7 @@
 		<ul class="rail__track" bind:this={track}>
 			{#each products.filter(p => config.data.product_card?.show_oos_cards !== false || p.is_in_stock !== false) as product (product.id)}
 				<li class="rail__cell">
-					<ProductCard {product} />
+					<ProductCard {product} {listingSource} />
 				</li>
 			{/each}
 		</ul>

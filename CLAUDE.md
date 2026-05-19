@@ -221,7 +221,7 @@ SiteGround captcha may intermittently block Playwright from outside the LAN. If 
 
 ## Deploy
 
-**Primary path**: run GitHub Actions (`.github/workflows/deploy.yml`) manually from the Actions tab and choose the target site. Client-owned forks may auto-deploy their own single target on push. The upstream workflow builds from GitHub checkout and deploys guarded artifacts to SiteGround; the live webroot is never a build source.
+**Primary path**: push deployable code to `main` → GitHub Actions (`.github/workflows/deploy.yml`) deploys Alyve only. Doc-only and workflow-only pushes skip. Include `[skip deploy]` in a commit message to skip a specific push. The workflow builds from GitHub checkout and deploys guarded artifacts to SiteGround; the live webroot is never a build source.
 
 **Manual override**: generate a site snapshot with `bin/snapshot-template.sh ~/dev/sites/<site>`, then run `./scripts/deploy-siteground.sh` from that generated site folder. Reads the per-site `.env`, rsyncs over SSH, triggers wp-cli setup, flushes cache.
 

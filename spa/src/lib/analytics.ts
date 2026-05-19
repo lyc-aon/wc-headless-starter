@@ -13,7 +13,10 @@
  * the SPA surface.
  */
 
-import { priceAsNumber } from '$lib/utils/format';
+import { config } from '$lib/config.svelte';
+import type { StoreApiCart } from '$lib/wc/cart.svelte';
+import type { StoreOrder } from '$lib/wc/orders';
+import { priceAsNumber, type CurrencyMeta } from '$lib/utils/format';
 
 declare global {
 	interface Window {
@@ -38,6 +41,12 @@ declare global {
 		hj: ((...args: unknown[]) => void) & { q?: unknown[] };
 		_hjSettings: { hjid: number; hjsv: number };
 		gtag: (...args: unknown[]) => void;
+		_cl?: {
+			pageview?: (eventName: string, properties: Record<string, unknown>) => void;
+			trackClick?: (eventName: string, properties: Record<string, unknown>) => void;
+			track?: (...args: unknown[]) => void;
+		};
+		CLabsgbVar?: { generalProps?: { uid?: string } };
 	}
 }
 
@@ -52,10 +61,23 @@ let initialized = false;
 let omnisendInitialized = false;
 let pendingOmnisendPushes: unknown[][] = [];
 
+function drainOmnisendPendingInto(queue: { push(cmd: unknown[]): void }): void {
+	if (!pendingOmnisendPushes.length) return;
+	for (const command of pendingOmnisendPushes) {
+		queue.push(command);
+	}
+	pendingOmnisendPushes = [];
+}
+
 function pushOmnisend(command: unknown[]): void {
 	if (typeof window === 'undefined') return;
 	const queue = window.omnisend;
 	if (queue && typeof queue.push === 'function') {
+		const canDrain =
+			omnisendInitialized || Array.isArray(queue);
+		if (pendingOmnisendPushes.length && canDrain) {
+			drainOmnisendPendingInto(queue as { push(cmd: unknown[]): void });
+		}
 		queue.push(command);
 		return;
 	}
@@ -64,10 +86,9 @@ function pushOmnisend(command: unknown[]): void {
 
 function flushPendingOmnisend(): void {
 	if (typeof window === 'undefined' || !window.omnisend) return;
-	for (const command of pendingOmnisendPushes) {
-		window.omnisend.push(command);
-	}
-	pendingOmnisendPushes = [];
+	const q = window.omnisend;
+	if (typeof q.push !== 'function') return;
+	drainOmnisendPendingInto(q as { push(cmd: unknown[]): void });
 }
 
 /**
@@ -105,8 +126,8 @@ export function initOmnisend(brandId: string): void {
  * for session tracking and campaign attribution.
  */
 export function trackOmnisendPageViewed(): void {
-	if (!omnisendInitialized || typeof window === 'undefined') return;
-	window.omnisend?.push(['track', '$pageViewed']);
+	if (typeof window === 'undefined' || !config.data.omnisend_brand_id) return;
+	pushOmnisend(['track', '$pageViewed']);
 }
 
 /**
@@ -115,7 +136,7 @@ export function trackOmnisendPageViewed(): void {
 export function trackOmnisendViewedProduct(product: {
 	id: number;
 	name: string;
-	prices: { price: string; currency_minor_unit: number };
+	prices: { price: string; currency_minor_unit: number; currency_code: string };
 	permalink?: string;
 	images?: { src: string }[];
 }): void {
@@ -126,7 +147,8 @@ export function trackOmnisendViewedProduct(product: {
 			$productID: String(product.id),
 			$variantID: String(product.id),
 			$title: product.name,
-			$price: Math.round(priceAsNumber(product.prices.price, product.prices) * 100),
+			$price: priceAsNumber(product.prices.price, product.prices),
+			$currency: product.prices.currency_code || config.data.currency_code,
 			$imageUrl: product.images?.[0]?.src || '',
 			$productUrl: product.permalink || window.location.href,
 		},
@@ -142,10 +164,12 @@ export function trackOmnisendAddedProductToCart(item: {
 	name: string;
 	price: string;
 	currency_minor_unit: number;
+	currency_code?: string;
 	quantity: number;
 	permalink?: string;
 	image?: string;
 }): void {
+	const currency = item.currency_code || config.data.currency_code;
 	pushOmnisend([
 		'track',
 		'$productAddedToCart',
@@ -153,7 +177,8 @@ export function trackOmnisendAddedProductToCart(item: {
 			$productID: String(item.id),
 			$variantID: String(item.variant_id ?? item.id),
 			$title: item.name,
-			$price: Math.round(priceAsNumber(item.price, item) * 100),
+			$price: priceAsNumber(item.price, item),
+			$currency: currency,
 			$quantity: item.quantity,
 			$imageUrl: item.image || '',
 			$productUrl: item.permalink || '',
@@ -196,16 +221,15 @@ export function trackOmnisendPlacedOrder(order: {
 		'$placedOrder',
 		{
 			$orderID: String(order.id),
-			$total: Math.round(priceAsNumber(order.totals.total_price, meta) * 100),
+			$total: priceAsNumber(order.totals.total_price, meta),
 			$currency: order.totals.currency_code,
 			$email: order.billing_address?.email || '',
 			$lineItems: order.items.map((li) => ({
 				$productID: String(li.id),
 				$title: li.name,
 				$quantity: li.quantity,
-				$price: Math.round(
-					(priceAsNumber(li.totals.line_total, meta) / Math.max(1, li.quantity)) * 100
-				),
+				$price: priceAsNumber(li.totals.line_total, meta) / Math.max(1, li.quantity),
+				$currency: order.totals.currency_code,
 			})),
 		},
 	]);
@@ -236,6 +260,7 @@ export function trackPageView(path: string, title?: string): void {
 		page_path: path,
 		page_title: title || document.title,
 	});
+	trackCustomerLabsVirtualPageview(path, title || (typeof document !== 'undefined' ? document.title : ''));
 }
 
 /**
@@ -258,6 +283,7 @@ export function trackViewItemList(
 			})),
 		},
 	});
+	trackCustomerLabsProductsListViewed(listName);
 }
 
 /**
@@ -266,7 +292,9 @@ export function trackViewItemList(
 export function trackViewItem(product: {
 	id: number;
 	name: string;
-	prices: { price: string; currency_minor_unit: number };
+	prices: { price: string; currency_minor_unit: number; currency_code?: string };
+	permalink?: string;
+	images?: { src: string }[];
 }): void {
 	window.dataLayer?.push({ ecommerce: null });
 	window.dataLayer?.push({
@@ -279,6 +307,7 @@ export function trackViewItem(product: {
 			}],
 		},
 	});
+	trackCustomerLabsProductViewed(product);
 }
 
 /**
@@ -289,7 +318,11 @@ export function trackAddToCart(item: {
 	name: string;
 	price: string;
 	currency_minor_unit: number;
+	currency_code?: string;
 	quantity: number;
+	permalink?: string;
+	image?: string;
+	clicked_from?: string;
 }): void {
 	window.dataLayer?.push({ ecommerce: null });
 	window.dataLayer?.push({
@@ -303,6 +336,7 @@ export function trackAddToCart(item: {
 			}],
 		},
 	});
+	trackCustomerLabsAddedToCart(item);
 }
 
 /**
@@ -339,20 +373,7 @@ export function trackRemoveFromCart(item: {
  *   event: 'purchase'
  *   ecommerce: { transaction_id, value, currency, items[] }
  */
-export function trackPurchase(order: {
-	id: number;
-	totals: {
-		total_price: string;
-		currency_code: string;
-		currency_minor_unit: number;
-	};
-	items: {
-		id: number;
-		name: string;
-		quantity: number;
-		totals: { line_total: string };
-	}[];
-}): void {
+export function trackPurchase(order: StoreOrder): void {
 	const meta = order.totals;
 	window.dataLayer?.push({ ecommerce: null });
 	window.dataLayer?.push({
@@ -372,6 +393,7 @@ export function trackPurchase(order: {
 			}),
 		},
 	});
+	trackCustomerLabsPurchased(order);
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -669,4 +691,344 @@ export function trackGoogleAdsConversion(o: PixelOrder, conversionId: string, co
 		currency: o.totals.currency_code,
 		transaction_id: String(o.id),
 	});
+}
+
+// ── CustomerLabs 1PD Ops (_cl) ─────────────────────────────────────────
+// https://customerlabs.com/docs/website-event-tracking/developer-documentation/javascript-api-documentation/
+// Event shapes use typed { t, v } fields per their API. No-ops when the
+// CustomerLabs script is not installed (Site Scripts → CustomerLabs off).
+
+type CLScalar = { t: 'string' | 'number'; v: string };
+
+const CL_ZERO_DECIMAL = new Set([
+	'BIF', 'CLP', 'DJF', 'GNF', 'ISK', 'JPY', 'KMF', 'KRW', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF',
+]);
+const CL_THREE_DECIMAL = new Set(['BHD', 'IQD', 'JOD', 'KWD', 'LYD', 'OMR', 'TND']);
+
+function clResolveMinorUnit(explicit: number | undefined | null, currencyCode: string): number {
+	if (typeof explicit === 'number' && Number.isFinite(explicit) && explicit >= 0 && explicit <= 4) {
+		return Math.round(explicit);
+	}
+	const c = (currencyCode || 'USD').toUpperCase();
+	if (CL_ZERO_DECIMAL.has(c)) return 0;
+	if (CL_THREE_DECIMAL.has(c)) return 3;
+	return 2;
+}
+
+function clStr(v: string): CLScalar {
+	const s = v.replace(/[\u0000-\u001F<>"'`\\]/g, ' ').trim();
+	return { t: 'string', v: s.slice(0, 2000) };
+}
+
+function clNumMajor(minorStr: string, meta: Pick<CurrencyMeta, 'currency_minor_unit'>): CLScalar {
+	const n = priceAsNumber(minorStr, meta);
+	const d = Math.min(4, Math.max(0, Math.round(meta.currency_minor_unit ?? 2)));
+	const v = Number.isFinite(n) ? n.toFixed(d) : '0';
+	return { t: 'number', v };
+}
+
+function clMajorFromMinor(
+	minorStr: string,
+	currencyCode: string,
+	explicitMinor?: number | null,
+): CLScalar {
+	const mu = clResolveMinorUnit(explicitMinor, currencyCode);
+	return clNumMajor(minorStr, { currency_minor_unit: mu });
+}
+
+function clPageUrl(): CLScalar {
+	if (typeof window === 'undefined') return { t: 'string', v: '' };
+	return clStr(window.location.href.split('#')[0]);
+}
+
+/** CustomerLabs drops customProperties if fired before the snippet uid is ready. */
+function whenCustomerLabsReady(run: () => void, maxAttempts = 50): void {
+	if (typeof window === 'undefined') return;
+	let attempts = 0;
+	const tick = () => {
+		const hasApi = typeof window._cl?.trackClick === 'function';
+		const hasUid = Boolean(window.CLabsgbVar?.generalProps?.uid);
+		if ((hasApi && hasUid) || attempts >= maxAttempts) {
+			if (hasApi) run();
+			return;
+		}
+		attempts += 1;
+		setTimeout(tick, 100);
+	};
+	tick();
+}
+
+function clCurrencyCode(code?: string): string {
+	return (code || config.data.currency_code || 'USD').toUpperCase();
+}
+
+/** event_attributes for Product viewed / Added to cart (not product_traits). */
+function clProductCustomAttributes(p: {
+	pageUrl: string;
+	currency: string;
+	priceMinor: string;
+	currency_minor_unit: number;
+	name: string;
+}): Record<string, CLScalar> {
+	const currency = clCurrencyCode(p.currency);
+	return {
+		page_url: clStr(p.pageUrl),
+		product_name: clStr(p.name),
+		product_price: clMajorFromMinor(p.priceMinor, currency, p.currency_minor_unit),
+		currency: clStr(currency),
+	};
+}
+
+function clCheckoutCustomAttributes(cart: StoreApiCart): Record<string, CLScalar> {
+	const currency = clCurrencyCode(cart.totals.currency_code);
+	const mu = cart.totals.currency_minor_unit;
+	return {
+		page_url: clPageUrl(),
+		currency: clStr(currency),
+		value: clMajorFromMinor(cart.totals.total_price, currency, mu),
+		subtotal: clMajorFromMinor(cart.totals.total_items, currency, mu),
+		shipping: clMajorFromMinor(cart.totals.total_shipping, currency, mu),
+		items_count: { t: 'number', v: String(cart.items_count) },
+	};
+}
+
+function clPurchasedCustomAttributes(order: StoreOrder): Record<string, CLScalar> {
+	const t = order.totals;
+	const currency = clCurrencyCode(t.currency_code);
+	return {
+		order_id: clStr(String(order.id)),
+		currency: clStr(currency),
+		value: clMajorFromMinor(t.total_price, currency, t.currency_minor_unit),
+	};
+}
+
+function clProductPropsRow(p: {
+	id: number;
+	name: string;
+	priceMinor: string;
+	currency_minor_unit?: number | null;
+	currency_code: string;
+	quantity?: number;
+	image?: string;
+	variantLabel?: string;
+}): Record<string, CLScalar> {
+	const row: Record<string, CLScalar> = {
+		product_id: { t: 'number', v: String(p.id) },
+		product_name: clStr(p.name),
+		product_price: clMajorFromMinor(p.priceMinor, p.currency_code, p.currency_minor_unit),
+	};
+	if (p.quantity != null) row.product_quantity = { t: 'number', v: String(Math.max(0, Math.round(p.quantity))) };
+	if (p.image) row.product_image = clStr(p.image);
+	if (p.variantLabel) row.product_variant = clStr(p.variantLabel);
+	return row;
+}
+
+let customerLabsNavigationCount = 0;
+
+/** SPA client navigations — first shell load relies on CustomerLabs’ default pageview. */
+export function trackCustomerLabsVirtualPageview(path: string, title: string): void {
+	if (typeof window === 'undefined') return;
+	customerLabsNavigationCount++;
+	if (customerLabsNavigationCount <= 1) return;
+	const href =
+		`${window.location.origin}${path.startsWith('/') ? path : `/${path}`}`.split('#')[0];
+	window._cl?.pageview?.('Page viewed', {
+		customProperties: {
+			page_url: clStr(href),
+			page_title: clStr(title || document.title || path),
+		},
+	});
+}
+
+export function trackCustomerLabsProductsListViewed(listName: string): void {
+	if (typeof window === 'undefined') return;
+	window._cl?.pageview?.('Products list viewed', {
+		customProperties: {
+			page_url: clPageUrl(),
+			category_name: clStr(listName),
+		},
+	});
+}
+
+export function trackCustomerLabsProductViewed(product: {
+	id: number;
+	name: string;
+	prices: { price: string; currency_minor_unit: number; currency_code?: string };
+	permalink?: string;
+	images?: { src: string }[];
+}): void {
+	if (typeof window === 'undefined') return;
+	const pageUrl = product.permalink || window.location.href.split('#')[0];
+	const currency = clCurrencyCode(product.prices.currency_code);
+
+	whenCustomerLabsReady(() => {
+		window._cl?.trackClick?.('Product viewed', {
+			productProperties: [
+				clProductPropsRow({
+					id: product.id,
+					name: product.name,
+					priceMinor: product.prices.price,
+					currency_minor_unit: product.prices.currency_minor_unit,
+					currency_code: currency,
+					quantity: 1,
+					image: product.images?.[0]?.src,
+				}),
+			],
+			customProperties: clProductCustomAttributes({
+				pageUrl,
+				currency,
+				priceMinor: product.prices.price,
+				currency_minor_unit: product.prices.currency_minor_unit,
+				name: product.name,
+			}),
+		});
+	});
+}
+
+export function trackCustomerLabsProductClickedFromListing(p: {
+	id: number;
+	name: string;
+	slug: string;
+	prices: { price: string; currency_minor_unit: number; currency_code?: string };
+	permalink: string;
+	image?: string;
+	listingSource: string;
+}): void {
+	if (typeof window === 'undefined') return;
+	const pageUrl = p.permalink || `${window.location.origin}/product/${p.slug}`;
+	const currency = clCurrencyCode(p.prices.currency_code);
+
+	whenCustomerLabsReady(() => {
+		window._cl?.trackClick?.('Product clicked', {
+			productProperties: [
+				clProductPropsRow({
+					id: p.id,
+					name: p.name,
+					priceMinor: p.prices.price,
+					currency_minor_unit: p.prices.currency_minor_unit,
+					currency_code: currency,
+					quantity: 1,
+					image: p.image,
+				}),
+			],
+			customProperties: {
+				...clProductCustomAttributes({
+					pageUrl,
+					currency,
+					priceMinor: p.prices.price,
+					currency_minor_unit: p.prices.currency_minor_unit,
+					name: p.name,
+				}),
+				clicked_from: clStr(p.listingSource),
+			},
+		});
+	});
+}
+
+export function trackCustomerLabsAddedToCart(item: {
+	id: number;
+	name: string;
+	price: string;
+	currency_minor_unit: number;
+	currency_code?: string;
+	quantity: number;
+	permalink?: string;
+	image?: string;
+	clicked_from?: string;
+}): void {
+	if (typeof window === 'undefined') return;
+	const pageUrl = item.permalink || window.location.href.split('#')[0];
+	const currency = clCurrencyCode(item.currency_code);
+	const qty = Math.max(1, Math.round(item.quantity));
+
+	whenCustomerLabsReady(() => {
+		window._cl?.trackClick?.('Added to cart', {
+			productProperties: [
+				clProductPropsRow({
+					id: item.id,
+					name: item.name,
+					priceMinor: item.price,
+					currency_minor_unit: item.currency_minor_unit,
+					currency_code: currency,
+					quantity: qty,
+					image: item.image,
+				}),
+			],
+			customProperties: clProductCustomAttributes({
+				pageUrl,
+				currency,
+				priceMinor: item.price,
+				currency_minor_unit: item.currency_minor_unit,
+				name: item.name,
+			}),
+		});
+	});
+}
+
+export function trackCustomerLabsCheckoutMade(cart: StoreApiCart): void {
+	if (typeof window === 'undefined' || !cart.items?.length) return;
+	const currency = clCurrencyCode(cart.totals.currency_code);
+
+	const productProperties = cart.items.map((li) => {
+		const variantLabel =
+			li.variation?.map((v) => `${v.attribute}: ${v.value}`).join(', ') || undefined;
+		const lineCurrency = clCurrencyCode(li.prices.currency_code || currency);
+		return clProductPropsRow({
+			id: li.id,
+			name: li.name,
+			priceMinor: li.prices.price,
+			currency_minor_unit: li.prices.currency_minor_unit,
+			currency_code: lineCurrency,
+			quantity: li.quantity,
+			image: li.images?.[0]?.src,
+			variantLabel,
+		});
+	});
+
+	whenCustomerLabsReady(() => {
+		window._cl?.trackClick?.('Checkout made', {
+			productProperties,
+			customProperties: clCheckoutCustomAttributes(cart),
+		});
+	});
+}
+
+export function trackCustomerLabsPurchased(order: StoreOrder): void {
+	if (typeof window === 'undefined') return;
+	const t = order.totals;
+	const currency = clCurrencyCode(t.currency_code);
+
+	const productProperties = order.items.map((li) => {
+		const qty = Math.max(1, li.quantity);
+		const unitMinor = String(Math.round((Number(li.totals.line_total) || 0) / qty));
+		return clProductPropsRow({
+			id: li.id,
+			name: li.name,
+			priceMinor: unitMinor,
+			currency_minor_unit: t.currency_minor_unit,
+			currency_code: currency,
+			quantity: li.quantity,
+			image: li.images?.[0]?.src,
+		});
+	});
+
+	const customProperties = clPurchasedCustomAttributes(order);
+	const dedupeKey = `wchs_cl_purchased_${order.id}`;
+
+	const fire = () => {
+		try {
+			if (sessionStorage.getItem(dedupeKey)) return;
+		} catch {
+			/* private mode */
+		}
+		window._cl?.trackClick?.('Purchased', { productProperties, customProperties });
+		try {
+			sessionStorage.setItem(dedupeKey, '1');
+		} catch {
+			/* private mode */
+		}
+	};
+
+	// Thank-you page: wait longer for the CustomerLabs snippet (per their docs).
+	whenCustomerLabsReady(fire, 150);
 }

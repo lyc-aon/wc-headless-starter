@@ -69,6 +69,7 @@ class ThemeStore {
 	current = $state<Theme>('light');
 	explicit = $state(false); // true if user has clicked toggle
 	siteDefault = $state<ThemeDefault>('system');
+	darkModeEnabled = $state(false);
 	/**
 	 * Preview-mode override set from the admin canvas toolbar theme toggle.
 	 * When set, the admin has forced a specific theme and subsequent config
@@ -84,8 +85,27 @@ class ThemeStore {
 	 *   Safe to call multiple times — once during early boot (pre-config, uses
 	 *   'system') and again after /wchs/v1/config lands with the real value.
 	 */
+	setDarkModeEnabled(enabled: boolean) {
+		this.darkModeEnabled = enabled;
+		if (!enabled) {
+			this.previewOverride = null;
+			this.explicit = false;
+			this.current = 'light';
+			this.siteDefault = 'light';
+			apply('light');
+			if (typeof localStorage !== 'undefined') localStorage.removeItem(KEY);
+			if (typeof document !== 'undefined') {
+				document.cookie = `${KEY}=; path=/; max-age=0; samesite=lax`;
+			}
+		}
+	}
+
 	init(siteDefault: ThemeDefault = 'system') {
 		this.siteDefault = siteDefault;
+		if (!this.darkModeEnabled) {
+			this.setDarkModeEnabled(false);
+			return;
+		}
 		// Preview mode: URL `?theme=light|dark` wins over stored prefs so the
 		// admin's forced theme survives hydration. Only active when ?preview=1.
 		if (typeof window !== 'undefined') {
@@ -123,6 +143,10 @@ class ThemeStore {
 
 	/** Re-resolve when site default arrives from /wchs/v1/config. Called by layout. */
 	applySiteDefault(siteDefault: ThemeDefault) {
+		if (!this.darkModeEnabled) {
+			this.setDarkModeEnabled(false);
+			return;
+		}
 		this.siteDefault = siteDefault;
 		if (this.explicit) return; // user-selected wins, no change
 		if (this.previewOverride) return; // preview-forced theme wins
@@ -147,6 +171,7 @@ class ThemeStore {
 	}
 
 	toggle() {
+		if (!this.darkModeEnabled) return;
 		this.current = this.current === 'dark' ? 'light' : 'dark';
 		this.explicit = true;
 		apply(this.current);

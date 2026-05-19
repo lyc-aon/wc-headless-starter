@@ -12,5 +12,5 @@ if [[ "$ans" != "y" && "$ans" != "Y" ]]; then
   exit 0
 fi
 
-docker compose down -v
+"$SCRIPT_DIR/wchs-compose.sh" down -v
 echo "clean. run ./scripts/up.sh then ./scripts/seed.sh to rebuild."

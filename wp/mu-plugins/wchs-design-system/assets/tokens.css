@@ -7,7 +7,7 @@
  * Dark-dominant palette with cool-slate neutrals. Zero shadows — depth
  * lives in section alternation, not CSS box-shadow.
  *
- * Consumed by both the SPA (via symlink at spa/src/lib/styles/tokens.css)
+ * Consumed by both the SPA (copy at spa/src/lib/styles/tokens.css via scripts/sync-spa-design-styles.mjs)
  * and the WP shim theme (via wp_enqueue_style in functions.php).
  */
 
@@ -68,6 +68,11 @@
 	--dur-fast: 180ms;
 	--dur-med: 280ms;
 	--dur-slow: 400ms;
+
+	/* Homepage / module vertical rhythm (overridable via WCHS Design tokens) */
+	--wchs-spacing-v-normal: 48px;
+	--wchs-spacing-v-compact: 20px;
+	--wchs-spacing-v-spacious: 72px;
 }
 
 [data-theme='dark'] {
@@ -146,6 +151,18 @@ html[data-theme='dark']  { color-scheme: dark; }
 [data-tabular] {
 	font-variant-numeric: tabular-nums;
 	font-feature-settings: 'tnum' on, 'lnum' on;
+}
+
+/* Shared storefront module titles — FAQs, catalog rails, category grid, comparison, etc. */
+.wchs-section-heading {
+	font-family: var(--font-heading, var(--font-sans));
+	font-size: clamp(1.5rem, 3.25vw, 2.125rem);
+	font-weight: 800;
+	letter-spacing: -0.025em;
+	line-height: 1.15;
+	color: var(--fg-strong);
+	text-transform: none;
+	margin: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -15,19 +15,17 @@ const ASPECT_RATIO: Record<ProductCardConfig['media_aspect_ratio'], string> = {
 };
 
 const CORNER_RADIUS: Record<ProductCardConfig['corner_radius'], string> = {
-	square: '0px',
-	soft:   '4px',
-	round:  '8px',
-	pill:   '16px',
+	square: '14px',
+	soft:   '14px',
+	round:  '14px',
+	pill:   '14px',
 };
 
 const BUTTON_RADIUS: Record<ProductCardConfig['corner_radius'], string> = {
-	// Buttons follow the card radius but clamped so "pill" cards still have
-	// square-ish buttons rather than huge ovals inside them.
-	square: '0px',
-	soft:   '4px',
-	round:  '6px',
-	pill:   '8px',
+	square: '14px',
+	soft:   '14px',
+	round:  '14px',
+	pill:   '14px',
 };
 
 export function applyProductCardTokens(pc: ProductCardConfig, root = document.documentElement): void {

@@ -84,7 +84,7 @@ try{
 	if(m)s=decodeURIComponent(m[1]);
 	// Fall back to localStorage (same-origin only)
 	if(s!=='light'&&s!=='dark'){try{s=localStorage.getItem(k);}catch(e){}}
-	var t=(s==='light'||s==='dark')?s:(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+	var t='light';
 	document.documentElement.setAttribute('data-theme',t);
 	document.documentElement.style.colorScheme=t;
 }catch(e){}

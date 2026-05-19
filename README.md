@@ -64,7 +64,7 @@ More screenshots, generated demo assets, and the exact reseed commands:
    to your `~/.ssh/config`.
 2. **Clone** this repo locally:
    ```sh
-   git clone https://github.com/lyc-aon/wc-headless-starter.git
+   git clone https://github.com/Shahab-Awan/wc-headless-starter.git
    cd wc-headless-starter
    ```
 3. **Generate a per-site snapshot** of the deploy toolkit:
@@ -97,9 +97,9 @@ runbook).
 ### Update a deployed site
 
 Primary path: configure the GitHub Actions secrets documented in
-[`.github/workflows/README.md`](.github/workflows/README.md), then run the
-manual deploy workflow from the Actions tab. Client-owned forks can enable
-their own single-site auto-deploy workflow. Do not build or sync from the live
+[`.github/workflows/README.md`](.github/workflows/README.md), then push to
+`main`. This fork's workflow builds from the repository checkout and deploys
+to Alyve only, with guarded rsync excludes. Do not build or sync from the live
 webroot.
 
 Manual path from a generated site folder:

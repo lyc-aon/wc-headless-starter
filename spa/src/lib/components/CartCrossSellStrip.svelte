@@ -4,20 +4,35 @@
 	 * slide cart. Consumes `extensions.wchs_cro.cross_sell_ids` from the
 	 * cart response and renders up to 4 product cards with a one-click add
 	 * button. The server-side union already drops products already in the
-	 * cart, so this component just renders what it's given.
+	 * cart. BAC water, protected shipping, and admin-configured exclusions
+	 * are stripped server-side and again here as a safety net.
 	 */
 	import { onMount, untrack } from 'svelte';
 	import EmblaCarousel, { type EmblaCarouselType } from 'embla-carousel';
 	import { cart } from '$lib/wc/cart.svelte';
-	import { getProductsByIds, getVariations, type StoreProduct, type StoreProductVariation } from '$lib/wc/products';
+	import {
+		getProductsByIds,
+		getVariations,
+		findPurchasableDefaultSelection,
+		type StoreProduct,
+		type StoreProductVariation,
+	} from '$lib/wc/products';
+	import { canPurchase } from '$lib/wc/stock';
 
 	import { fade, fly } from 'svelte/transition';
-	import { config } from '$lib/config.svelte';
+	import {
+		CART_CROSS_SELL_TARGET_COUNT,
+		config,
+		isCartCrossSellBlockedProduct,
+	} from '$lib/config.svelte';
 	import { formatPrice } from '$lib/utils/format';
 
 	let { ids }: { ids: number[] } = $props();
 
 	const mode = $derived(config.data.pdp?.cross_sell_mode ?? 'simple');
+	const recommendIds = $derived(
+		ids.filter((id) => !isCartCrossSellBlockedProduct(id)).slice(0, CART_CROSS_SELL_TARGET_COUNT)
+	);
 
 	// Modal state for simple mode variable products
 	let modalProduct = $state<StoreProduct | null>(null);
@@ -29,7 +44,11 @@
 		modalState = { ...getState(product), stepIdx: 0 };
 		modalVariations = [];
 		if (product.has_options && product.variations.length) {
-			modalVariations = await getVariations(product.variations.map(v => v.id));
+			modalVariations = await getVariations(product.variations.map((v) => v.id));
+			const defaults = findPurchasableDefaultSelection(product, modalVariations);
+			if (defaults && modalState) {
+				modalState = { ...modalState, attrs: defaults };
+			}
 		}
 	}
 
@@ -55,7 +74,7 @@
 			if (!otherOk) continue;
 			// Check stock from full variation data
 			const fullVar = modalVariations.find(v => v.id === vRef.id);
-			if (fullVar && fullVar.is_in_stock && fullVar.is_purchasable) return true;
+			if (fullVar && canPurchase(fullVar)) return true;
 		}
 		return false;
 	}
@@ -167,13 +186,17 @@
 			return;
 		}
 
+		const vid = product.has_options ? findVariationId(product, s.attrs) : null;
+		const variation = product.has_options
+			? Object.entries(s.attrs).map(([k, v]) => ({ attribute: k, value: v }))
+			: [];
+		const targetId = vid ?? product.id;
+		if (!canPurchase(product) && !product.has_options) return;
+		if (product.has_options && vid === null) return;
+
 		addingId = product.id;
 		try {
-			const vid = findVariationId(product, s.attrs);
-			const variation = product.has_options
-				? Object.entries(s.attrs).map(([k, v]) => ({ attribute: k, value: v }))
-				: [];
-			await cart.addItem(vid ?? product.id, s.qty, variation);
+			await cart.addItem(targetId, s.qty, variation, { clicked_from: 'cart_cross_sell' });
 			miniStates.set(product.id, { ...s, justAdded: true });
 			miniStates = new Map(miniStates);
 			setTimeout(() => {
@@ -257,17 +280,22 @@
 		const ready = (!modalProduct.has_options || allSelected(modalProduct, modalState.attrs)) && isQty;
 		if (!ready) return;
 
+		const vid = modalProduct.has_options ? findVariationId(modalProduct, modalState.attrs) : null;
+		if (modalProduct.has_options && !vid) return;
+		const variation = modalProduct.has_options
+			? Object.entries(modalState.attrs).map(([k, v]) => ({ attribute: k, value: v }))
+			: [];
+		const targetId = vid ?? modalProduct.id;
+		const varRow = vid ? modalVariations.find((v) => v.id === vid) : null;
+		if (modalProduct.has_options) {
+			if (!varRow || !canPurchase(varRow)) return;
+		} else if (!canPurchase(modalProduct)) {
+			return;
+		}
+
 		addingId = modalProduct.id;
 		try {
-			const vid = modalProduct.has_options ? findVariationId(modalProduct, modalState.attrs) : null;
-			if (modalProduct.has_options && !vid) {
-				// Invalid combination — shouldn't happen if options are filtered correctly
-				return;
-			}
-			const variation = modalProduct.has_options
-				? Object.entries(modalState.attrs).map(([k, v]) => ({ attribute: k, value: v }))
-				: [];
-			await cart.addItem(vid ?? modalProduct.id, modalState.qty, variation);
+			await cart.addItem(targetId, modalState.qty, variation, { clicked_from: 'cart_cross_sell' });
 			miniStates.set(modalProduct.id, { ...modalState, justAdded: true });
 			miniStates = new Map(miniStates);
 			closeModal();
@@ -311,23 +339,22 @@
 	// Re-fetch whenever the id list changes. Cache by stringified-sorted key
 	// so toggling "cart item removed" doesn't re-fetch the same set.
 	$effect(() => {
-		const key = [...ids].sort((a, b) => a - b).join(',');
+		const key = [...recommendIds].sort((a, b) => a - b).join(',');
 		if (key === loadedForIds) return;
 		untrack(() => {
 			loadedForIds = key;
 		});
-		if (ids.length === 0) {
+		if (recommendIds.length === 0) {
 			products = [];
 			return;
 		}
 		loading = true;
-		getProductsByIds(ids.slice(0, 6))
+		getProductsByIds(recommendIds.slice(0, CART_CROSS_SELL_TARGET_COUNT))
 			.then((list) => {
-				// Preserve server-side order
-				const order = new Map(ids.map((id, i) => [id, i]));
-				products = list.sort(
-					(a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0)
-				);
+				const order = new Map(recommendIds.map((id, i) => [id, i]));
+				products = list
+					.filter((p) => !isCartCrossSellBlockedProduct(p.id, p.slug))
+					.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 			})
 			.finally(() => {
 				loading = false;
@@ -337,10 +364,10 @@
 	async function addToCart(e: Event, product: StoreProduct) {
 		e.preventDefault();
 		e.stopPropagation();
-		if (addingId !== null) return;
+		if (addingId !== null || !canPurchase(product)) return;
 		addingId = product.id;
 		try {
-			await cart.addItem(product.id, 1);
+			await cart.addItem(product.id, 1, [], { clicked_from: 'cart_cross_sell' });
 		} finally {
 			addingId = null;
 		}
@@ -362,7 +389,7 @@
 		</header>
 		<div class="cart-xsell__viewport" bind:this={viewportEl}>
 			<div class="cart-xsell__track" bind:this={trackEl} role="list">
-			{#each products.slice(0, 6) as product (product.id)}
+			{#each products.slice(0, CART_CROSS_SELL_TARGET_COUNT) as product (product.id)}
 				{@const cro = product.extensions?.wchs_cro}
 				{@const regular = cro?.regular_price ?? Number(product.prices.regular_price)}
 				{@const current = Number(product.prices.price)}

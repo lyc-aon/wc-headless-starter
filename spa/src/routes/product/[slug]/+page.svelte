@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
-	import { fade, fly, slide } from 'svelte/transition';
+	import { fade, fly } from 'svelte/transition';
 	import EmblaCarousel, { type EmblaCarouselType } from 'embla-carousel';
 	import AccessGate from '$lib/components/AccessGate.svelte';
 	import { config } from '$lib/config.svelte';
@@ -10,20 +10,29 @@
 		getProductsByIds,
 		getVariations,
 		findVariationId,
+		findPurchasableDefaultSelection,
 		type StoreProduct,
 		type StoreProductVariation
 	} from '$lib/wc/products';
+	import { canPurchase, isOutOfStock } from '$lib/wc/stock';
 	import { cart } from '$lib/wc/cart.svelte';
-	import { pretext } from '$lib/pretext/engine';
-	import ProductSlider from '$lib/components/ProductSlider.svelte';
+	import PdpBuyBox from '$lib/components/pdp/PdpBuyBox.svelte';
+	import PdpCrossSell from '$lib/components/pdp/PdpCrossSell.svelte';
 	import HomepageProductSlider from '$lib/components/HomepageProductSlider.svelte';
 	import ReviewSlider from '$lib/components/ReviewSlider.svelte';
 	import Accordion from '$lib/components/Accordion.svelte';
 	import TrustBar from '$lib/components/TrustBar.svelte';
 	import TextBlock from '$lib/components/TextBlock.svelte';
+	import Listicle from '$lib/components/Listicle.svelte';
+	import PromoOffer from '$lib/components/PromoOffer.svelte';
+	import ReviewsListicle from '$lib/components/ReviewsListicle.svelte';
+	import ListicleFaqs from '$lib/components/ListicleFaqs.svelte';
 	import Gallery from '$lib/components/Gallery.svelte';
 	import CategoryGrid from '$lib/components/CategoryGrid.svelte';
 	import SplitFeatures from '$lib/components/SplitFeatures.svelte';
+	import SplitValue from '$lib/components/SplitValue.svelte';
+	import FeatureHighlights from '$lib/components/FeatureHighlights.svelte';
+	import OrderHandling from '$lib/components/OrderHandling.svelte';
 	import ShopGrid from '$lib/components/ShopGrid.svelte';
 	import ContactForm from '$lib/components/ContactForm.svelte';
 	import SEO from '$lib/components/SEO.svelte';
@@ -62,28 +71,25 @@
 	let selection = $state<Record<string, string>>({});
 	let quantity = $state(1);
 
-	// Seed selection from the product's default_attributes (served by the
-	// Store API as `term.default = true` on each attribute). Without this,
-	// variable products land with nothing selected and "ADD TO CART" stays
-	// disabled — users have to click a variant manually even if the store
-	// already has a default picked in WC admin.
+	// Seed selection from the first purchasable variation once variation
+	// payloads are loaded (WC defaults only when that variation is in stock).
 	$effect(() => {
-		if (!product || !product.has_options) return;
-		// Only seed attributes that don't already have a selection (so a
-		// subsequent user click wins over the default).
+		if (!product?.has_options || variations.length === 0) return;
+		const defaults = findPurchasableDefaultSelection(product, variations);
+		if (!defaults) return;
+		const keys = product.attributes.map((a) => a.name);
+		if (keys.every((k) => selection[k])) return;
 		let touched = false;
-		for (const attr of product.attributes) {
-			if (selection[attr.name]) continue;
-			const def = attr.terms?.find((t) => t.default);
-			if (def) {
-				selection[attr.name] = def.name;
+		const next = { ...selection };
+		for (const [k, v] of Object.entries(defaults)) {
+			if (!next[k]) {
+				next[k] = v;
 				touched = true;
 			}
 		}
-		if (touched) selection = { ...selection };
+		if (touched) selection = next;
 	});
 	let adding = $state(false);
-	let fontsReady = $state(false);
 	let activeImage = $state(0);
 
 	// Embla gallery
@@ -172,21 +178,12 @@
 	});
 
 	onMount(async () => {
-		await pretext.ready();
-		fontsReady = true;
 		try {
 			product = await getProduct(page.params.slug ?? '');
 			if (product && product.has_options && product.variations.length) {
 				variations = await getVariations(product.variations.map((v) => v.id));
-				// Pre-select default attributes from WC config
-				const defaults: Record<string, string> = {};
-				for (const attr of product.attributes) {
-					const def = attr.terms.find(t => t.default);
-					if (def) defaults[attr.name] = def.name;
-				}
-				if (Object.keys(defaults).length > 0) {
-					selection = defaults;
-				}
+				const defaults = findPurchasableDefaultSelection(product, variations);
+				if (defaults) selection = defaults;
 			}
 			const ids = product?.extensions?.wchs_cro?.cross_sell_ids ?? [];
 			if (ids.length > 0) {
@@ -285,8 +282,8 @@
 			.trim()
 			.substring(0, 300);
 		const inStock = selectedVariation
-			? selectedVariation.is_in_stock
-			: product.is_in_stock;
+			? canPurchase(selectedVariation)
+			: canPurchase(product);
 		const schema: Record<string, unknown> = {
 			'@context': 'https://schema.org',
 			'@type': 'Product',
@@ -358,7 +355,7 @@
 		lastTrackedVariationId = v.id;
 		import('$lib/analytics').then((a) => {
 			const pl = { id: v.id, name: p.name, prices: v.prices, permalink: p.permalink, images: p.images };
-			a.trackViewItem({ id: v.id, name: p.name, prices: v.prices });
+			a.trackViewItem({ id: v.id, name: p.name, prices: v.prices, permalink: p.permalink, images: p.images });
 			a.trackOmnisendViewedProduct(pl);
 			a.trackKlaviyoViewedProduct(pl);
 			a.trackMetaViewContent(pl);
@@ -381,8 +378,20 @@
 	// before a variation is selected on variable products.
 	const parentCro = $derived(product?.extensions?.wchs_cro ?? null);
 
-	// hasTiers: true when there are tiers with real dollar values (for the table)
-	const hasTiers = $derived(!!cro?.tiers?.length && cro.tiers.some((t: any) => t.unit_price > 0));
+	const regularMinor = $derived.by((): number => {
+		if (!product) return 0;
+		if (cro?.regular_price && cro.regular_price > 0) return cro.regular_price;
+		if (selectedVariation) return Number(selectedVariation.prices.regular_price);
+		return Number(product.prices.regular_price);
+	});
+
+	const hasTiers = $derived.by(() => {
+		if (cro?.tiers?.length) return true;
+		return (
+			config.data.pdp?.bundle_bogo?.enabled !== false &&
+			regularMinor > 0
+		);
+	});
 
 	// Max savings pct — check parent CRO too so the badge shows before variation selection
 	const maxTierPct = $derived.by(() => {
@@ -398,7 +407,7 @@
 		return 0;
 	});
 
-	// Which tier row is currently active given the qty stepper?
+	// Active tier for line-total pricing when quantity matches a bundle row.
 	const activeTier = $derived.by(() => {
 		if (!cro?.tiers?.length) return null;
 		let hit = null;
@@ -406,15 +415,6 @@
 			if (quantity >= t.min_qty) hit = t;
 		}
 		return hit;
-	});
-
-	// Next tier the user could reach by increasing quantity.
-	const nextTier = $derived.by(() => {
-		if (!cro?.tiers?.length) return null;
-		for (const t of cro.tiers) {
-			if (quantity < t.min_qty) return t;
-		}
-		return null;
 	});
 
 	// Base unit price in minor units (before tiers). Uses variation price
@@ -425,27 +425,11 @@
 		return Number(product.prices.price);
 	});
 
-	// Regular price in minor units (for strikethrough). Uses CRO regular_price
-	// if available, else the Store API regular_price.
-	const regularUnitPrice = $derived.by((): number => {
-		if (!product) return 0;
-		if (selectedVariation) {
-			return cro?.regular_price || Number(selectedVariation.prices.regular_price);
-		}
-		return cro?.regular_price || Number(product.prices.regular_price);
-	});
-
 	// Effective unit price accounting for tier pricing
 	const unitPrice = $derived(activeTier ? activeTier.unit_price : baseUnitPrice);
 
 	// Line total
 	const lineTotal = $derived(unitPrice * quantity);
-
-	// Is on sale? Either WC sale price or tier discount applied
-	const onSale = $derived(regularUnitPrice > 0 && unitPrice < regularUnitPrice);
-
-	// Total savings vs regular price
-	const totalSavings = $derived(onSale ? (regularUnitPrice - unitPrice) * quantity : 0);
 
 	function formatMoneyInt(minorInt: number): string {
 		if (!product) return '';
@@ -455,37 +439,14 @@
 		return Number.isInteger(p) ? `${p}%` : `${p.toFixed(1)}%`;
 	}
 
-	// Derived: display price — tier-adjusted unit price, variation price, or range
-	const displayPrice = $derived.by(() => {
-		if (!product) return '';
-		// Variable product with no selection: show range
-		if (product.has_options && !selectedVariation) {
-			const range = product.prices.price_range;
-			if (range) {
-				const min = formatPriceValue(range.min_amount, product.prices.currency_minor_unit, product.prices.currency_symbol, product.prices.currency_code);
-				const max = formatPriceValue(range.max_amount, product.prices.currency_minor_unit, product.prices.currency_symbol, product.prices.currency_code);
-				return `${min} – ${max}`;
-			}
-		}
-		return formatMoneyInt(unitPrice);
-	});
-
-	// Regular price string for strikethrough display
-	const displayRegularPrice = $derived(
-		onSale ? formatMoneyInt(regularUnitPrice) : ''
-	);
-
 	// Derived: can add to cart? Simple: in stock + purchasable. Variable: needs
 	// complete selection + selected variation in stock + purchasable.
 	const canAdd = $derived.by(() => {
 		if (!product) return false;
 		if (adding) return false;
-		if (!product.has_options) {
-			return product.is_in_stock && product.is_purchasable;
-		}
-		if (!selectedVariationId) return false;
-		if (!selectedVariation) return false;
-		return selectedVariation.is_in_stock && selectedVariation.is_purchasable;
+		if (!product.has_options) return canPurchase(product);
+		if (!selectedVariationId || !selectedVariation) return false;
+		return canPurchase(selectedVariation);
 	});
 
 	// Derived: button label — gives the user feedback on why disabled
@@ -493,24 +454,21 @@
 		if (!product) return 'Loading';
 		if (adding) return 'Adding…';
 		if (!product.has_options) {
-			if (!product.is_in_stock) return 'Out of Stock';
-			if (!product.is_purchasable) return 'Unavailable';
+			if (!canPurchase(product)) return isOutOfStock(product) ? 'Out of Stock' : 'Unavailable';
 			return product.add_to_cart?.text ?? 'Add to Cart';
 		}
 		// Variable
 		const missing = product.attributes.filter((a) => !selection[a.name]).map((a) => a.name);
 		if (missing.length) return `Select ${missing[0]}`;
 		if (!selectedVariationId) return 'Unavailable';
-		if (selectedVariation && !selectedVariation.is_in_stock) return 'Out of Stock';
+		if (selectedVariation && !canPurchase(selectedVariation)) return 'Out of Stock';
 		return 'Add to Cart';
 	});
 
 	// Per-variation stock indexed by "attr1=val1|attr2=val2" signature, so
 	// buttons can show which combos are in stock without hitting the API.
 	const stockByVariationId = $derived(
-		new Map<number, { inStock: boolean; purchasable: boolean }>(
-			variations.map((v) => [v.id, { inStock: v.is_in_stock, purchasable: v.is_purchasable }])
-		)
+		new Map(variations.map((v) => [v.id, canPurchase(v)]))
 	);
 
 	/**
@@ -530,8 +488,7 @@
 				return chosen === undefined || chosen === a.value;
 			});
 			if (!otherAttrsOk) continue;
-			const stock = stockByVariationId.get(v.id);
-			if (stock && stock.inStock && stock.purchasable) return true;
+			if (stockByVariationId.get(v.id)) return true;
 		}
 		return false;
 	}
@@ -547,22 +504,7 @@
 		}
 	}
 
-	let buyingNow = $state(false);
 	let justAdded = $state(false);
-	let qtyBump = $state(false);
-
-	// Quantity constraints from WC
-	const minQty = $derived(product?.add_to_cart?.minimum || 1);
-	const maxQty = $derived(product?.add_to_cart?.maximum || 999);
-	const stepQty = $derived(product?.add_to_cart?.multiple_of || 1);
-
-	// Pulse animation on quantity change
-	$effect(() => {
-		quantity; // track
-		qtyBump = true;
-		const t = setTimeout(() => (qtyBump = false), 300);
-		return () => clearTimeout(t);
-	});
 
 	async function handleAdd() {
 		if (!product || !canAdd) return;
@@ -574,9 +516,9 @@
 					attribute: attr.name,
 					value: selection[attr.name]
 				}));
-				await cart.addItem(selectedVariationId, quantity, variationPayload);
+				await cart.addItem(selectedVariationId, quantity, variationPayload, { clicked_from: 'product_page' });
 			} else {
-				await cart.addItem(product.id, quantity);
+				await cart.addItem(product.id, quantity, [], { clicked_from: 'product_page' });
 			}
 			justAdded = true;
 			setTimeout(() => (justAdded = false), 1500);
@@ -585,37 +527,10 @@
 		}
 	}
 
-	async function handleBuyNow() {
-		if (!product || !canAdd || buyingNow) return;
-		buyingNow = true;
-		try {
-			if (product.has_options && selectedVariationId) {
-				const variationPayload = product.attributes.map((attr) => ({
-					attribute: attr.name,
-					value: selection[attr.name]
-				}));
-				await cart.buyNow(selectedVariationId, quantity, variationPayload);
-			} else {
-				await cart.buyNow(product.id, quantity);
-			}
-		} finally {
-			buyingNow = false;
-		}
-	}
-
 	function formatReviewDate(iso: string): string {
 		return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 	}
 
-	function formatPriceValue(amount: string, minorUnit: number, symbol: string, code?: string): string {
-		return formatPrice(amount, { currency_minor_unit: minorUnit, currency_symbol: symbol, currency_code: code });
-	}
-
-	// Pretext the product title
-	const titleLayout = $derived.by(() => {
-		if (!fontsReady || !product) return null;
-		return pretext.measure(product.name, 'title', 520, 38);
-	});
 </script>
 
 {#if product}
@@ -642,6 +557,7 @@
 	<article class="pdp">
 		<div class="pdp__media">
 			{#if product.images.length > 0}
+				<div class="pdp__gallery-wrap">
 				<div class="pdp__gallery" bind:this={galleryViewport}>
 					<div class="pdp__gallery-track" bind:this={galleryContainer}>
 						{#each product.images as img, i}
@@ -663,6 +579,10 @@
 							</button>
 						{/each}
 					</div>
+				</div>
+				{#if config.data.pdp?.image_disclaimer}
+					<p class="pdp__image-disclaimer">{config.data.pdp.image_disclaimer}</p>
+				{/if}
 				</div>
 				{#if product.images.length > 1}
 					<div class="pdp__dots">
@@ -688,189 +608,31 @@
 			{/if}
 		</div>
 
-		<div class="pdp__body">
-			{#if product.categories.length > 0}
-				<nav class="pdp__breadcrumb" aria-label="Breadcrumb">
-					<a href="/shop">Shop</a>
-					{#each product.categories as cat}
-						<span class="pdp__breadcrumb-sep">/</span>
-						<a href="/shop/{cat.slug}">{cat.name}</a>
-					{/each}
-				</nav>
-			{/if}
-			<h1
-				class="pdp__title"
-				style={titleLayout ? `min-height: ${titleLayout.height}px` : ''}
-			>{product.name}</h1>
-			{#if product.review_count > 0 && config.data.pdp?.show_reviews !== false}
-				<button type="button" class="pdp__rating" onclick={() => (reviewsOpen = true)}>
-					<span class="pdp__rating-stars">
-						{#each Array(5) as _, i}
-							<span class="pdp__rating-star" class:filled={i < Math.round(parseFloat(product.average_rating))}>★</span>
-						{/each}
-					</span>
-					<span class="pdp__rating-score">{parseFloat(product.average_rating).toFixed(1)}</span>
-					<span class="pdp__rating-count">({product.review_count} {product.review_count === 1 ? 'review' : 'reviews'})</span>
-				</button>
-			{/if}
-			<div class="pdp__price-row" class:pdp__price-row--spaced={quantity <= 1 && !activeTier}>
-				{#key displayPrice}
-					<div class="pdp__price-group pdp__price--morph">
-						{#if displayRegularPrice}
-							<span class="pdp__price-was">{displayRegularPrice}</span>
-						{/if}
-						<p class="pdp__price">{displayPrice}</p>
-					</div>
-				{/key}
-				{#if activeTier}
-					<span class="pdp__price-badge pdp__price-badge--active">Saving {formatPct(activeTier.savings_pct)}</span>
-				{:else if maxTierPct > 0}
-					<span class="pdp__price-badge">Bulk save up to {formatPct(maxTierPct)}</span>
-				{/if}
-			</div>
-			{#if quantity > 1 || activeTier}
-				<div class="pdp__line-total">
-					{#key lineTotal}
-						<span class="pdp__line-total-amount pdp__price--morph">
-							{formatMoneyInt(lineTotal)}
-						</span>
-					{/key}
-					<span class="pdp__line-total-label">for {quantity} {quantity === 1 ? 'unit' : 'units'}</span>
-					{#if totalSavings > 0}
-						<span class="pdp__line-total-savings">You save {formatMoneyInt(totalSavings)}</span>
-					{/if}
-				</div>
-			{/if}
-
-			{#if product.short_description}
-				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-				<div class="pdp__desc">{@html product.short_description}</div>
-			{/if}
-
-			<div class="pdp__meta">
-				{#if product.sku}
-					<span class="pdp__meta-item">SKU: {product.sku}</span>
-				{/if}
-				{#if product.low_stock_remaining}
-					<span class="pdp__meta-item pdp__meta-item--urgent">Only {product.low_stock_remaining} left in stock</span>
-				{:else if product.is_on_backorder}
-					<span class="pdp__meta-item pdp__meta-item--notice">Available on backorder</span>
-				{/if}
-			</div>
-
-			{#if product.has_options}
-				<div class="pdp__variants">
-					{#each product.attributes as attr}
-						<div class="pdp__variant-group">
-							<div class="pdp__variant-label">
-								{attr.name}
-								{#if selection[attr.name]}
-									<span class="pdp__variant-selected">— {selection[attr.name]}</span>
-								{/if}
-							</div>
-							<div class="pdp__variant-options">
-								{#each attr.terms as term}
-									{@const available = termAvailable(attr.name, term.name)}
-									<button
-										type="button"
-										class="pdp__variant-btn"
-										class:pdp__variant-btn--active={selection[attr.name] === term.name}
-										class:pdp__variant-btn--unavailable={!available}
-										disabled={!available && selection[attr.name] !== term.name}
-										onclick={() => selectTerm(attr.name, term.name)}
-									>
-										{term.name}
-									</button>
-								{/each}
-							</div>
-						</div>
-					{/each}
-				</div>
-			{/if}
-
-			{#if hasTiers && cro}
-				<section class="pdp__tiers" aria-label="Volume discounts" transition:slide={{ duration: 300 }}>
-					<header class="pdp__tiers-head">
-						<h2>Volume savings</h2>
-						<p>Stock up and save on every unit.</p>
-					</header>
-					<ul class="pdp__tiers-list">
-						<li
-							class="pdp__tier-row pdp__tier-row--base"
-							class:pdp__tier-row--active={!activeTier}
-						>
-							<div class="pdp__tier-qty">1+</div>
-							<div class="pdp__tier-unit tabular-nums">{formatMoneyInt(cro.regular_price)}</div>
-							<div class="pdp__tier-save">—</div>
-						</li>
-						{#each cro.tiers as t}
-							<li
-								class="pdp__tier-row"
-								class:pdp__tier-row--active={activeTier?.min_qty === t.min_qty}
-							>
-								<div class="pdp__tier-qty">{t.min_qty}+</div>
-								<div class="pdp__tier-unit tabular-nums">{formatMoneyInt(t.unit_price)}</div>
-								<div class="pdp__tier-save tabular-nums">save {formatPct(t.savings_pct)}</div>
-							</li>
-						{/each}
-					</ul>
-					{#if nextTier}
-						<button
-							type="button"
-							class="pdp__tiers-nudge"
-							onclick={() => (quantity = nextTier.min_qty)}
-						>
-							<span class="pdp__tiers-nudge-icon">+</span>
-							<span class="pdp__tiers-nudge-text">
-								Add {nextTier.min_qty - quantity}&nbsp;more to save {formatPct(nextTier.savings_pct)}
-								<small>{formatMoneyInt(nextTier.unit_price)} each at qty {nextTier.min_qty}</small>
-							</span>
-						</button>
-					{/if}
-				</section>
-			{/if}
-
-			<div class="pdp__qty-row">
-				{#if !product.sold_individually}
-					<div class="pdp__qty">
-						<button type="button" onclick={() => (quantity = Math.max(minQty, quantity - stepQty))} disabled={quantity <= minQty} aria-label="Decrease quantity">−</button>
-						<input type="number" bind:value={quantity} min={minQty} max={maxQty} step={stepQty} class:is-bumping={qtyBump} />
-						<button type="button" onclick={() => (quantity = Math.min(maxQty, quantity + stepQty))} disabled={quantity >= maxQty} aria-label="Increase quantity">+</button>
-					</div>
-				{/if}
-				<div class="pdp__actions">
-					<button
-						type="button"
-						class="pdp__add"
-						class:pdp__add--success={justAdded}
-						disabled={!canAdd || adding}
-						onclick={handleAdd}
-					>
-						{#if justAdded}
-							<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><path d="M20 6L9 17l-5-5"/></svg>
-							Added
-						{:else if adding}
-							Adding…
-						{:else}
-							{addLabel}
-						{/if}
-					</button>
-					<button
-						type="button"
-						class="pdp__buy-now"
-						disabled={!canAdd || buyingNow}
-						onclick={handleBuyNow}
-					>
-						{buyingNow ? 'Processing…' : 'Buy Now'}
-					</button>
-				</div>
-			</div>
-
-			{#if product.description}
-				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-				<div class="pdp__long">{@html product.description}</div>
-			{/if}
-		</div>
+		<PdpBuyBox
+			{product}
+			brandName={config.data.brand_name}
+			{selection}
+			onSelectTerm={selectTerm}
+			{termAvailable}
+			{selectedVariation}
+			{quantity}
+			onQuantityChange={(q) => (quantity = q)}
+			{cro}
+			{hasTiers}
+			{regularMinor}
+			{unitPrice}
+			{lineTotal}
+			{maxTierPct}
+			{formatMoneyInt}
+			{formatPct}
+			{canAdd}
+			{addLabel}
+			{adding}
+			{justAdded}
+			onAdd={handleAdd}
+			showReviews={product.review_count > 0 && config.data.pdp?.show_reviews !== false}
+			onReviewsOpen={() => (reviewsOpen = true)}
+		/>
 	</article>
 
 	{#each pdpModules as mod}
@@ -878,18 +640,32 @@
 			<HomepageProductSlider config={mod.config} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
 		{:else if mod.type === 'review_slider'}
 			<ReviewSlider title={mod.config.title || 'What customers say'} photos_only={mod.config.photos_only || false} product_ids={mod.config.product_ids || []} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
+		{:else if mod.type === 'order_handling'}
+			<OrderHandling config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header ?? true} />
 		{:else if mod.type === 'accordion'}
 			<Accordion config={mod.config} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
 		{:else if mod.type === 'trust_bar'}
 			<TrustBar config={mod.config} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} />
+		{:else if mod.type === 'listicle'}
+			<Listicle config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} />
+		{:else if mod.type === 'promo_offer'}
+			<PromoOffer config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} />
+		{:else if mod.type === 'reviews_listicle'}
+			<ReviewsListicle config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} />
+		{:else if mod.type === 'listicle_faqs'}
+			<ListicleFaqs config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} />
 		{:else if mod.type === 'text_block'}
-			<TextBlock config={mod.config} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
+			<TextBlock config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
 		{:else if mod.type === 'gallery'}
 			<Gallery config={mod.config} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
 		{:else if mod.type === 'category_grid'}
 			<CategoryGrid config={mod.config} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
 		{:else if mod.type === 'split_features'}
-			<SplitFeatures config={mod.config} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
+			<SplitFeatures config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
+		{:else if mod.type === 'split_value'}
+			<SplitValue config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} />
+		{:else if mod.type === 'feature_highlights'}
+			<FeatureHighlights config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} />
 		{:else if mod.type === 'shop_grid'}
 			<ShopGrid title={mod.config.title || 'Shop'} category={mod.config.category} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
 		{:else if mod.type === 'contact_form'}
@@ -897,14 +673,7 @@
 		{/if}
 	{/each}
 
-	{#if crossSells.length > 0}
-		<section class="pdp-xsell">
-			<div class="pdp-xsell__head">
-				<p class="pdp-xsell__label">You might also like</p>
-			</div>
-			<ProductSlider products={crossSells} />
-		</section>
-	{/if}
+	<PdpCrossSell products={crossSells} />
 {/if}
 </AccessGate>
 
@@ -1033,6 +802,7 @@
 
 <style>
 	.pdp {
+		--pdp-radius: 16px;
 		display: grid;
 		grid-template-columns: 1.1fr 1fr;
 		gap: 64px;
@@ -1056,6 +826,26 @@
 		top: 100px;
 		align-self: start;
 	}
+	.pdp__gallery-wrap {
+		position: relative;
+		border-radius: var(--pdp-radius);
+		overflow: hidden;
+	}
+	.pdp__image-disclaimer {
+		position: absolute;
+		right: 12px;
+		bottom: 12px;
+		margin: 0;
+		max-width: min(220px, 55%);
+		font-size: 9px;
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		text-align: right;
+		color: var(--fg-muted);
+		line-height: 1.35;
+		pointer-events: none;
+	}
 	@media (max-width: 860px) {
 		.pdp__media {
 			position: static;
@@ -1065,7 +855,7 @@
 		aspect-ratio: 1 / 1;
 		background: var(--bg-muted);
 		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
+		border-radius: var(--pdp-radius);
 		overflow: hidden;
 	}
 	.pdp__gallery--placeholder {
@@ -1091,6 +881,7 @@
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
+		border-radius: var(--pdp-radius);
 		display: block;
 		user-select: none;
 		-webkit-user-drag: none;
@@ -1189,7 +980,7 @@
 		max-width: 100%;
 		max-height: calc(100vh - 80px);
 		object-fit: contain;
-		border-radius: var(--radius-sm);
+		border-radius: var(--pdp-radius, 16px);
 	}
 	.lightbox__counter {
 		position: absolute;
@@ -1210,553 +1001,12 @@
 		}
 	}
 
-	.pdp__body {
-		display: flex;
-		flex-direction: column;
-	}
-	.pdp__breadcrumb {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		margin: 0 0 16px;
-		font-size: 11px;
-		font-weight: 450;
-		letter-spacing: 0.04em;
-	}
-	.pdp__breadcrumb a {
-		color: var(--fg-muted);
-		text-decoration: none;
-		transition: color var(--dur-fast) var(--ease);
-	}
-	.pdp__breadcrumb a:hover {
-		color: var(--fg);
-	}
-	.pdp__breadcrumb-sep {
-		color: var(--border);
-		font-size: 10px;
-	}
-	.pdp__title {
-		font-family: var(--font-heading, var(--font-sans));
-		font-size: clamp(32px, 3.4vw, 44px);
-		font-weight: var(--heading-weight, 500);
-		line-height: 1.02;
-		letter-spacing: -0.024em;
-		margin: 0 0 12px;
-		color: var(--fg);
-	}
-	.pdp__rating {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		margin: 0 0 14px;
-		padding: 0;
-		background: transparent;
-		border: 0;
-		font: inherit;
-		cursor: pointer;
-	}
-	.pdp__rating:hover .pdp__rating-count {
-		color: var(--fg);
-		text-decoration: underline;
-	}
-	.pdp__rating-stars {
-		font-size: 14px;
-		letter-spacing: 1px;
-	}
-	.pdp__rating-star {
-		color: var(--border);
-	}
-	.pdp__rating-star.filled {
-		color: var(--accent, #ffdd24);
-	}
-	.pdp__rating-score {
-		font-size: 13px;
-		font-weight: 600;
-		color: var(--fg);
-	}
-	.pdp__rating-count {
-		font-size: 12px;
-		color: var(--fg-muted);
-	}
-	.pdp__meta {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 12px;
-		margin: 0 0 24px;
-	}
-	.pdp__meta:empty {
-		display: none;
-	}
-	.pdp__meta-item {
-		font-size: 11px;
-		font-weight: 450;
-		letter-spacing: 0.04em;
-		color: var(--fg-muted);
-	}
-	.pdp__meta-item--urgent {
-		color: var(--warning, #d97706);
-		font-weight: 600;
-	}
-	.pdp__meta-item--notice {
-		color: var(--fg-muted);
-		font-style: italic;
-	}
-	.pdp__price-row {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		flex-wrap: wrap;
-		margin: 0 0 8px;
-	}
-	.pdp__price-row--spaced {
-		margin-bottom: 16px;
-	}
-	.pdp__price-group {
-		display: flex;
-		align-items: baseline;
-		gap: 10px;
-	}
-	.pdp__price {
-		font-family: var(--font-sans);
-		font-size: 22px;
-		font-weight: 500;
-		letter-spacing: -0.3px;
-		margin: 0;
-		color: var(--fg);
-		font-variant-numeric: tabular-nums;
-	}
-	.pdp__price-was {
-		font-size: 15px;
-		font-weight: 450;
-		color: var(--fg-muted);
-		text-decoration: line-through;
-	}
-	.pdp__price-badge {
-		font-size: 10px;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.1em;
-		padding: 4px 8px;
-		border: 1px solid var(--success, #5ba238);
-		border-radius: var(--radius-xs);
-		color: var(--success, #5ba238);
-	}
-	.pdp__price-badge--active {
-		background: color-mix(in oklab, var(--success, #5ba238) 12%, transparent);
-	}
-	.pdp__line-total {
-		display: flex;
-		align-items: baseline;
-		gap: 8px;
-		flex-wrap: wrap;
-		margin: 0 0 32px;
-	}
-	.pdp__line-total-amount {
-		font-size: 14px;
-		font-weight: 500;
-		color: var(--fg);
-		font-variant-numeric: tabular-nums;
-		letter-spacing: -0.2px;
-	}
-	.pdp__line-total-label {
-		font-size: 12px;
-		color: var(--fg-muted);
-	}
-	.pdp__line-total-savings {
-		font-size: 11px;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: var(--success, #5ba238);
-	}
-	.pdp__price--morph {
-		animation: wchs-price-morph var(--dur-fast) var(--ease-out);
-	}
-	@keyframes wchs-price-morph {
-		0%   { opacity: 0; transform: translateY(-3px); }
-		100% { opacity: 1; transform: translateY(0); }
-	}
-	.pdp__desc {
-		color: var(--fg-muted);
-		margin: 0 0 16px;
-		line-height: 1.55;
-		font-size: 14px;
-		letter-spacing: -0.16px;
-	}
-
-	.pdp__tiers {
-		margin: 0 0 32px;
-		padding: 20px 22px 18px;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		background: var(--bg-elevated);
-	}
-	.pdp__tiers-head {
-		margin: 0 0 14px;
-	}
-	.pdp__tiers-head h2 {
-		margin: 0 0 4px;
-		font-size: 12px;
-		font-weight: 500;
-		text-transform: uppercase;
-		letter-spacing: 0.1em;
-		color: var(--fg);
-	}
-	.pdp__tiers-head p {
-		margin: 0;
-		font-size: 12px;
-		color: var(--fg-muted);
-	}
-	.pdp__tiers-list {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		display: grid;
-		gap: 0;
-	}
-	.pdp__tier-row {
-		display: grid;
-		grid-template-columns: 60px 1fr auto;
-		align-items: center;
-		gap: 16px;
-		padding: 10px 0;
-		border-top: 1px dashed var(--border);
-		font-size: 13px;
-		transition: background 0.25s var(--ease), margin 0.25s var(--ease), padding 0.25s var(--ease);
-	}
-	.pdp__tier-row:first-child { border-top: 0; padding-top: 4px; }
-	.pdp__tier-row:last-child { padding-bottom: 4px; }
-	.pdp__tier-row--base .pdp__tier-qty,
-	.pdp__tier-row--base .pdp__tier-unit,
-	.pdp__tier-row--base .pdp__tier-save {
-		color: var(--fg-muted);
-	}
-	.pdp__tier-qty {
-		font-weight: 500;
-		color: var(--fg);
-		letter-spacing: -0.16px;
-	}
-	.pdp__tier-unit {
-		font-weight: 500;
-		color: var(--fg);
-		letter-spacing: -0.2px;
-		transition: color 0.25s var(--ease), font-weight 0.25s var(--ease);
-	}
-	.pdp__tier-save {
-		font-size: 11px;
-		font-weight: 500;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: var(--success, #5ba238);
-		transition: color 0.25s var(--ease), font-weight 0.25s var(--ease);
-	}
-	.pdp__tier-row--active {
-		position: relative;
-		margin-left: -14px;
-		margin-right: -14px;
-		padding-left: 14px;
-		padding-right: 14px;
-		background: color-mix(in oklab, var(--success, #5ba238) 12%, transparent);
-		border-radius: var(--radius-xs);
-		border-top-color: transparent !important;
-	}
-	.pdp__tier-row--active .pdp__tier-qty,
-	.pdp__tier-row--active .pdp__tier-unit,
-	.pdp__tier-row--active .pdp__tier-save {
-		color: var(--success, #5ba238);
-		font-weight: 600;
-	}
-	.pdp__tier-row--base.pdp__tier-row--active .pdp__tier-unit {
-		color: var(--fg);
-	}
-
-	.pdp__tiers-nudge {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		margin: 14px 0 0;
-		padding: 12px 14px;
-		width: 100%;
-		background: transparent;
-		border: 1px dashed var(--border);
-		border-radius: var(--radius-sm);
-		color: var(--fg);
-		font: inherit;
-		text-align: left;
-		cursor: pointer;
-		transition:
-			border-color var(--dur-fast) var(--ease),
-			background var(--dur-fast) var(--ease);
-	}
-	.pdp__tiers-nudge:hover {
-		border-style: solid;
-		border-color: var(--fg);
-		background: color-mix(in oklab, var(--fg) 4%, transparent);
-	}
-	.pdp__tiers-nudge-icon {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 24px;
-		height: 24px;
-		border: 1px solid var(--fg-muted);
-		border-radius: 999px;
-		color: var(--fg);
-		font-size: 14px;
-		line-height: 1;
-		flex-shrink: 0;
-	}
-	.pdp__tiers-nudge-text {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		font-size: 11px;
-		font-weight: 500;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: var(--fg);
-	}
-	.pdp__tiers-nudge-text small {
-		font-size: 10px;
-		font-weight: 450;
-		text-transform: none;
-		letter-spacing: 0;
-		color: var(--fg-muted);
-	}
-
-	.pdp__variants {
-		display: flex;
-		flex-direction: column;
-		gap: 24px;
-		margin-bottom: 32px;
-	}
-	.pdp__variant-group {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-	}
-	.pdp__variant-label {
-		font-size: 11px;
-		font-weight: 450;
-		text-transform: uppercase;
-		letter-spacing: 0.12em;
-		color: var(--fg-muted);
-	}
-	.pdp__variant-selected {
-		color: var(--fg);
-		text-transform: none;
-		letter-spacing: -0.16px;
-		margin-left: 6px;
-		font-weight: 500;
-	}
-	.pdp__variant-options {
-		display: flex;
-		gap: 8px;
-		flex-wrap: wrap;
-	}
-	.pdp__variant-btn {
-		padding: 11px 20px;
-		background: transparent;
-		color: var(--fg);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		cursor: pointer;
-		font: inherit;
-		font-size: 13px;
-		font-weight: 500;
-		letter-spacing: -0.16px;
-		transition:
-			background var(--dur-fast) var(--ease),
-			border-color var(--dur-fast) var(--ease),
-			color var(--dur-fast) var(--ease),
-			opacity var(--dur-fast) var(--ease),
-			transform var(--dur-fast) var(--ease);
-	}
-	.pdp__variant-btn:hover:not(:disabled):not(.pdp__variant-btn--active) {
-		border-color: var(--fg);
-	}
-	.pdp__variant-btn:active:not(:disabled) {
-		transform: scale(0.96);
-	}
-	.pdp__variant-btn--active {
-		background: var(--accent);
-		color: var(--accent-fg);
-		border-color: var(--accent);
-	}
-	.pdp__variant-btn--unavailable {
-		opacity: 0.32;
-		cursor: not-allowed;
-		text-decoration: line-through;
-	}
-
-	.pdp__qty-row {
-		display: flex;
-		gap: 12px;
-		align-items: stretch;
-		margin-bottom: 40px;
-	}
-	.pdp__qty {
-		display: inline-flex;
-		align-items: center;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		height: 50px;
-	}
-	.pdp__qty button {
-		width: 44px;
-		height: 100%;
-		background: transparent;
-		color: var(--fg);
-		border: 0;
-		cursor: pointer;
-		font-size: 16px;
-		line-height: 1;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		transition: background var(--dur-fast) var(--ease);
-	}
-	.pdp__qty button:hover {
-		background: var(--bg-muted);
-	}
-	.pdp__qty input {
-		width: 48px;
-		height: 100%;
-		text-align: center;
-		background: transparent;
-		color: var(--fg);
-		border: 0;
-		border-left: 1px solid var(--border);
-		border-right: 1px solid var(--border);
-		font: inherit;
-		font-size: 13px;
-		font-weight: 500;
-		padding: 0;
-		font-variant-numeric: tabular-nums;
-	}
-	.pdp__qty input::-webkit-outer-spin-button,
-	.pdp__qty input::-webkit-inner-spin-button {
-		-webkit-appearance: none;
-		appearance: none;
-		margin: 0;
-	}
-	.pdp__qty input[type='number'] {
-		-moz-appearance: textfield;
-		appearance: textfield;
-	}
-
-	.pdp__actions {
-		display: flex;
-		gap: 8px;
-		width: 100%;
-	}
-	.pdp__add, .pdp__buy-now {
-		flex: 1 1 0;
-		padding: 0 24px;
-		border-radius: var(--radius-sm);
-		font: inherit;
-		font-size: 12px;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.1em;
-		cursor: pointer;
-		min-height: 48px;
-		transition:
-			background var(--dur-fast) var(--ease),
-			color var(--dur-fast) var(--ease),
-			transform var(--dur-fast) var(--ease);
-	}
-	.pdp__add {
-		background: var(--accent);
-		color: var(--accent-fg);
-		border: 1px solid var(--accent);
-	}
-	.pdp__buy-now {
-		background: var(--fg);
-		color: var(--bg);
-		border: 1px solid var(--fg);
-	}
-	.pdp__add:hover:not(:disabled) {
-		background: transparent;
-		color: var(--accent);
-	}
-	.pdp__buy-now:hover:not(:disabled) {
-		background: transparent;
-		color: var(--fg);
-	}
-	.pdp__add:active:not(:disabled), .pdp__buy-now:active:not(:disabled) {
-		transform: scale(0.99);
-	}
-	.pdp__add:disabled, .pdp__buy-now:disabled {
-		opacity: 0.35;
-		cursor: not-allowed;
-		background: var(--bg-muted);
-		color: var(--fg-muted);
-		border-color: var(--border);
-	}
-
-	/* Add to cart success state */
-	.pdp__add--success {
-		background: var(--success, #059669);
-		border-color: var(--success, #059669);
-		color: #fff;
-		animation: pdp-pop 0.4s var(--ease-out);
-	}
-	.pdp__add--success:hover:not(:disabled) {
-		background: var(--success, #059669);
-		color: #fff;
-	}
-	.pdp__add svg {
-		flex-shrink: 0;
-	}
-	@keyframes pdp-pop {
-		0% { transform: scale(0.95); }
-		50% { transform: scale(1.02); }
-		100% { transform: scale(1); }
-	}
-
-	/* Quantity bump pulse */
-	.pdp__qty input.is-bumping {
-		animation: pdp-qty-pulse 0.25s var(--ease-out);
-	}
-	@keyframes pdp-qty-pulse {
-		0% { transform: scale(1); }
-		40% { transform: scale(1.15); }
-		100% { transform: scale(1); }
-	}
-
-	.pdp__long {
-		color: var(--fg);
-		line-height: 1.6;
-		font-size: 14px;
-	}
-
 	.loading,
 	.err {
 		padding: 60px 24px;
 		color: var(--fg-muted);
 		text-align: center;
 		font-size: 14px;
-	}
-
-	.pdp-xsell {
-		padding: 0 24px 48px;
-		max-width: 1440px;
-		margin: 0 auto;
-	}
-	@media (min-width: 640px) {
-		.pdp-xsell { padding: 0 32px 48px; }
-	}
-	.pdp-xsell__head {
-		padding: 0 0 20px;
-	}
-	.pdp-xsell__label {
-		margin: 0;
-		font-size: 12px;
-		font-weight: 500;
-		text-transform: uppercase;
-		letter-spacing: 0.1em;
-		color: var(--fg-muted);
 	}
 
 	/* ── Reviews overlay ── */

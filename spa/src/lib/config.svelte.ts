@@ -33,6 +33,8 @@ export type HeroTextWeight = 'light' | 'regular' | 'medium' | 'semibold' | 'bold
 export type HeroFontKey = 'inter' | 'barlow' | 'bebas' | 'playfair' | 'space_grotesk' | 'archivo' | 'oswald';
 export type HeroTextColorMode = 'theme' | 'white' | 'black' | 'accent';
 
+export type HeroResearchStat = { value: string; label: string };
+
 export type HomepageHeroConfig = {
 	headline: string;
 	content_mode?: 'text' | 'logo';
@@ -48,7 +50,15 @@ export type HomepageHeroConfig = {
 	subheadline_size?: Extract<HeroTextSize, 's' | 'm' | 'l'>;
 	cta_text: string;
 	cta_link: string;
-	variant: 'text-only' | 'webgl-noise' | 'webgl-variant-2' | 'webgl-variant-3' | 'webgl-variant-4' | 'webgl-variant-5' | 'webgl-variant-6';
+	variant:
+		| 'text-only'
+		| 'research-motion'
+		| 'webgl-noise'
+		| 'webgl-variant-2'
+		| 'webgl-variant-3'
+		| 'webgl-variant-4'
+		| 'webgl-variant-5'
+		| 'webgl-variant-6';
 	layout: 'left' | 'center' | 'bottom';
 	image_desktop: string;
 	image_mobile: string;
@@ -64,6 +74,10 @@ export type HomepageHeroConfig = {
 	cta_accent: boolean;
 	show_cta: boolean;
 	trust_items: HeroTrustItem[];
+	research_badge?: string;
+	cta_secondary_text?: string;
+	cta_secondary_link?: string;
+	research_stats?: HeroResearchStat[];
 };
 
 /**
@@ -94,7 +108,19 @@ export type HeroModuleConfig = {
 	cta_text?: string;
 	cta_link?: string;
 	layout?: 'left' | 'center' | 'bottom';
-	variant?: 'text-only' | 'webgl-noise' | 'webgl-variant-2' | 'webgl-variant-3' | 'webgl-variant-4' | 'webgl-variant-5' | 'webgl-variant-6';
+	variant?:
+		| 'text-only'
+		| 'research-motion'
+		| 'webgl-noise'
+		| 'webgl-variant-2'
+		| 'webgl-variant-3'
+		| 'webgl-variant-4'
+		| 'webgl-variant-5'
+		| 'webgl-variant-6';
+	research_badge?: string;
+	cta_secondary_text?: string;
+	cta_secondary_link?: string;
+	research_stats?: HeroResearchStat[];
 };
 
 export type ProductSliderModuleConfig = {
@@ -191,6 +217,14 @@ export function isModuleVisibleNow(mod: { start_at?: string; end_at?: string }):
 	return true;
 }
 
+/** Set `true` to show homepage BOGO / split_value promo again (WP config is unchanged). */
+export const HOMEPAGE_SPLIT_VALUE_ENABLED = false;
+
+export function isHomepageModuleShown(mod: HomepageModule): boolean {
+	if (!HOMEPAGE_SPLIT_VALUE_ENABLED && mod.type === 'split_value') return false;
+	return true;
+}
+
 export type TrustBarItem = {
 	icon: string;
 	headline: string;
@@ -203,9 +237,87 @@ export type TrustBarModuleConfig = {
 	icon_accent?: boolean;
 };
 
+export type TextBlockComparisonRow = { heading: string };
+
+export type ListicleItem = {
+	number?: string;
+	label?: string;
+	headline: string;
+	body?: string;
+	callout?: string;
+	image?: string;
+	image_alt?: string;
+};
+
+export type PromoOfferModuleConfig = {
+	intro_headline?: string;
+	intro_subheadline?: string;
+	badge_text?: string;
+	image?: string;
+	image_alt?: string;
+	ribbon_text?: string;
+	offer_primary?: string;
+	offer_secondary?: string;
+	scarcity_text?: string;
+	cta_label?: string;
+	cta_href?: string;
+	show_countdown?: boolean;
+	countdown_end_at?: string;
+	status_label?: string;
+	status_value?: string;
+	status_note?: string;
+	footer_text?: string;
+};
+
+export type ListicleFaqsItem = {
+	q?: string;
+	a?: string;
+};
+
+export type ListicleFaqsModuleConfig = {
+	eyebrow?: string;
+	headline?: string;
+	/** @deprecated Use headline — kept for saved configs before merge. */
+	headline_prefix?: string;
+	/** @deprecated Use headline — kept for saved configs before merge. */
+	headline_accent?: string;
+	items?: ListicleFaqsItem[];
+};
+
+export type ReviewsListicleItem = {
+	quote?: string;
+	name?: string;
+	rating?: number;
+};
+
+export type ReviewsListicleModuleConfig = {
+	headline?: string;
+	items?: ReviewsListicleItem[];
+};
+
+export type ListicleModuleConfig = {
+	section_eyebrow?: string;
+	headline?: string;
+	hero_image?: string;
+	hero_image_alt?: string;
+	intro?: string;
+	items_headline?: string;
+	closing?: string;
+	items?: ListicleItem[];
+	cta_label?: string;
+	cta_href?: string;
+};
+
 export type TextBlockModuleConfig = {
+	layout?: 'auto' | 'standard' | 'comparison';
 	title: string;
+	headline?: string;
 	content: string;
+	brand_name?: string;
+	competitor_name?: string;
+	brand_logo?: string;
+	competitor_logo?: string;
+	comparison_rows?: TextBlockComparisonRow[];
 };
 
 export type GalleryItem = {
@@ -242,8 +354,67 @@ export type SplitFeatureItem = {
 };
 
 export type SplitFeaturesModuleConfig = {
+	layout?: 'alternating' | 'comparison';
+	headline?: string;
+	subtitle?: string;
+	brand_name?: string;
+	competitor_name?: string;
+	brand_logo?: string;
+	competitor_logo?: string;
 	title: string;
 	items: SplitFeatureItem[];
+};
+
+export type SplitValueBullet = { text: string };
+export type SplitValueStat = { value: string; label: string };
+
+export type SplitValueModuleConfig = {
+	rating_line: string;
+	headline_prefix: string;
+	headline_accent: string;
+	accent_underline: boolean;
+	bullets: SplitValueBullet[];
+	cta_label: string;
+	cta_href: string;
+	trust_note: string;
+	promo_badge_eyebrow: string;
+	promo_badge_title: string;
+	image: string;
+	image_alt: string;
+	stats: SplitValueStat[];
+};
+
+export type FeatureHighlightItem = {
+	variant: string;
+	headline: string;
+	description: string;
+};
+
+export type FeatureHighlightsModuleConfig = {
+	badge_text: string;
+	headline_prefix: string;
+	headline_accent: string;
+	subheadline: string;
+	items: FeatureHighlightItem[];
+	cta_label: string;
+	cta_href: string;
+};
+
+export type OrderHandlingStep = {
+	variant: string;
+	headline: string;
+	description: string;
+};
+
+export type OrderHandlingMetric = { value: string; label: string };
+
+export type OrderHandlingModuleConfig = {
+	badge_text: string;
+	headline: string;
+	subheadline: string;
+	steps: OrderHandlingStep[];
+	metrics_title: string;
+	metrics: OrderHandlingMetric[];
 };
 
 export type ShopGridModuleConfig = {
@@ -308,9 +479,16 @@ export type HomepageModule =
 	| (ModuleBase & { type: 'accordion'; config: AccordionModuleConfig })
 	| (ModuleBase & { type: 'trust_bar'; config: TrustBarModuleConfig })
 	| (ModuleBase & { type: 'text_block'; config: TextBlockModuleConfig })
+	| (ModuleBase & { type: 'listicle'; config: ListicleModuleConfig })
+	| (ModuleBase & { type: 'promo_offer'; config: PromoOfferModuleConfig })
+	| (ModuleBase & { type: 'reviews_listicle'; config: ReviewsListicleModuleConfig })
+	| (ModuleBase & { type: 'listicle_faqs'; config: ListicleFaqsModuleConfig })
 	| (ModuleBase & { type: 'gallery'; config: GalleryModuleConfig })
 	| (ModuleBase & { type: 'category_grid'; config: CategoryGridModuleConfig })
 	| (ModuleBase & { type: 'split_features'; config: SplitFeaturesModuleConfig })
+	| (ModuleBase & { type: 'split_value'; config: SplitValueModuleConfig })
+	| (ModuleBase & { type: 'feature_highlights'; config: FeatureHighlightsModuleConfig })
+	| (ModuleBase & { type: 'order_handling'; config: OrderHandlingModuleConfig })
 	| (ModuleBase & { type: 'shop_grid'; config: ShopGridModuleConfig })
 	| (ModuleBase & { type: 'contact_form'; config: ContactFormModuleConfig })
 	| (ModuleBase & { type: 'hero'; config: HeroModuleConfig })
@@ -324,10 +502,86 @@ export type HomepageConfig = {
 	modules: HomepageModule[];
 };
 
+export type PdpFeatureItem = { icon: string; label: string };
+export type PdpTrustBadge = { icon: string; label: string };
+export type PdpCoaMetric = { label: string; value: string };
+
+export type PdpBogoBundleConfig = {
+	enabled?: boolean;
+	savings_pct?: number;
+	presets?: Array<{ paid_qty: number; free_qty?: number; flag?: string }>;
+};
+
+export type PdpCoaSectionConfig = {
+	enabled?: boolean;
+	eyebrow?: string;
+	title?: string;
+	subtitle?: string;
+	disclaimer?: string;
+	default_batch?: string;
+	default_lab?: string;
+	default_metrics?: PdpCoaMetric[];
+};
+
+export type PdpCrossSellConfig = {
+	eyebrow?: string;
+	title?: string;
+	subtitle?: string;
+	view_all_url?: string;
+};
+
+export type SlideCartConfig = {
+	cross_sell_exclude_product_ids?: number[];
+	cross_sell_exclude_slugs?: string[];
+};
+
+export const CART_CROSS_SELL_DEFAULT_EXCLUDE_SLUGS = ['bac-water-10ml', 'shipping-protection'] as const;
+export const CART_CROSS_SELL_TARGET_COUNT = 4;
+
+export function cartCrossSellExcludeSlugs(): string[] {
+	const fromConfig = config.data.pdp?.slide_cart?.cross_sell_exclude_slugs ?? [];
+	return [...new Set([...CART_CROSS_SELL_DEFAULT_EXCLUDE_SLUGS, ...fromConfig])];
+}
+
+export function cartCrossSellExcludeProductIds(): number[] {
+	const fromConfig = config.data.pdp?.slide_cart?.cross_sell_exclude_product_ids ?? [];
+	return [...new Set([...fromConfig])];
+}
+
+export function isCartCrossSellBlockedSlug(slug: string): boolean {
+	const s = slug.trim().toLowerCase();
+	if (!s) return false;
+	for (const raw of cartCrossSellExcludeSlugs()) {
+		const x = raw.trim().toLowerCase();
+		if (!x) continue;
+		if (s === x || s.startsWith(`${x}-`)) return true;
+	}
+	if (/bac[-_]?water|bacteriostatic[-_]?water/.test(s)) return true;
+	if (/shipping[-_]?protection|protected[-_]?shipping/.test(s)) return true;
+	return false;
+}
+
+export function isCartCrossSellBlockedProduct(id: number, slug = ''): boolean {
+	if (cartCrossSellExcludeProductIds().includes(id)) return true;
+	if (slug) return isCartCrossSellBlockedSlug(slug);
+	return false;
+}
+
 export type PdpConfig = {
 	show_reviews: boolean;
 	cross_sell_mode: 'simple' | 'complex';
 	modules: HomepageModule[];
+	coa_library_url?: string;
+	slide_cart?: SlideCartConfig;
+	cross_sell?: PdpCrossSellConfig;
+	bundle_bogo?: PdpBogoBundleConfig;
+	coa_section?: PdpCoaSectionConfig;
+	verified_label?: string;
+	show_ships_banner?: boolean;
+	show_payment_icons?: boolean;
+	image_disclaimer?: string;
+	features?: PdpFeatureItem[];
+	trust_badges?: PdpTrustBadge[];
 };
 
 export type CustomPage = {
@@ -398,6 +652,8 @@ export type SiteConfig = {
 	google_ads_conversion_label: string;
 	review_write_enabled: boolean;
 	turnstile_site_key: string;
+	announcement_bar_enabled: boolean;
+	announcement_bar_items: string[];
 	header_links: HeaderLink[];
 	header_toggle_accent: boolean;
 	header_cart_accent: boolean;
@@ -418,7 +674,7 @@ export type SiteConfig = {
 	/** Desktop logo height preset. Mobile stays constrained regardless. */
 	logo_size: 'compact' | 'standard' | 'prominent' | 'xl';
 	/** Desktop brand / logo position. Mobile is always centered. */
-	brand_position: 'left' | 'center';
+	brand_position: 'left' | 'center' | 'nav-center';
 	/** Global typography settings from Appearance tab. */
 	typography: {
 		heading_font: string;
@@ -483,6 +739,8 @@ export type ActiveScript = {
 	defer: boolean;
 	placement: 'head' | 'body_end';
 	surfaces: Array<'spa' | 'wp'>;
+	/** Admin-curated registry JS; runs before `src` when both are set. */
+	inline?: string;
 };
 
 const DEFAULTS: SiteConfig = {
@@ -498,7 +756,7 @@ const DEFAULTS: SiteConfig = {
 	currency_code: 'USD',
 	currency_symbol: '$',
 	shipping_free_threshold: 0,
-	features: { guest_checkout: true, dark_mode: true, pretext: true },
+	features: { guest_checkout: true, dark_mode: false, pretext: true },
 	version: '0.1.0',
 	access_mode: 3,
 	accent_color: null,
@@ -515,45 +773,185 @@ const DEFAULTS: SiteConfig = {
 	google_ads_conversion_label: '',
 	homepage: {
 		hero: {
-			headline: 'Welcome',
+			headline: 'A leading grade provider of research peptides.',
 			content_mode: 'text',
 			logo_source: 'site_logo',
 			logo_url: '',
 			logo_dark_url: '',
 			logo_size: 'large',
-			subheadline: 'Browse products, review your cart, and checkout securely.',
-			cta_text: 'Enter the shop',
+			headline_size: 'l',
+			headline_weight: 'medium',
+			headline_font: 'inter',
+			text_color_mode: 'white',
+			subheadline:
+				'Independently verified. Third-party tested. Every batch held to the highest standard.',
+			subheadline_size: 'm',
+			cta_text: 'Shop All Peptides',
 			cta_link: '/shop',
-			variant: 'webgl-noise',
-			layout: 'left',
+			cta_secondary_text: 'View COA Library',
+			cta_secondary_link: '/coa-library',
+			research_badge: '• RESEARCH USE ONLY',
+			research_stats: [
+				{ value: '≥99%', label: 'VERIFIED PURITY' },
+				{ value: '6-panel', label: 'COA EVERY BATCH' },
+				{ value: '60+', label: 'RESEARCH COMPOUNDS' },
+			],
+			variant: 'research-motion',
+			layout: 'center',
 			image_desktop: '',
 			image_mobile: '',
 			image_position_x: 50,
 			image_position_y: 50,
 			image_position_mobile_x: 50,
 			image_position_mobile_y: 80,
-			show_eyebrow: true,
+			image_zoom: 100,
+			image_zoom_mobile: 100,
+			show_eyebrow: false,
 			cta_accent: true,
 			show_cta: true,
 			show_rating: false,
 			rating_text: '',
 			trust_items: [],
 		},
-		modules: [{
-			type: 'product_slider',
-			visibility: 'all',
-			config: {
-				title: 'Featured',
-				source: 'all',
-				category: null,
-				product_ids: [],
+		modules: [
+			{
+				type: 'split_value',
+				visibility: 'all',
+				spacing_v: 'normal',
+				spacing_h: 'normal',
+				config: {
+					rating_line: 'Rated 4.98/5 · 24,987+ reviews',
+					headline_prefix: 'A Leading Provider of Research Grade',
+					headline_accent: 'Peptides.',
+					accent_underline: true,
+					bullets: [
+						{ text: 'Fast U.S. Shipping' },
+						{ text: '99% Tested Purity' },
+						{ text: 'Made in USA' },
+					],
+					cta_label: 'Buy 1 Get 1 Free',
+					cta_href: '/shop',
+					trust_note: 'Research use only. All major credit/debit cards, PayPal, ACH, BTC, Zelle.',
+					promo_badge_eyebrow: 'LIMITED TIME',
+					promo_badge_title: 'Buy 1 Get 1 Free',
+					image: '/wp-content/uploads/2026/05/e33abf7d-1bcf-42ea-b324-c777cec4006d.webp',
+					image_alt: 'Research-grade peptides — product lineup',
+					stats: [
+						{ value: '99%', label: 'Purity' },
+						{ value: '24.9K+', label: 'Reviews' },
+						{ value: 'Triple-Tested', label: 'for Quality' },
+					],
+				},
 			},
-		}],
+			{
+				type: 'feature_highlights',
+				visibility: 'all',
+				spacing_v: 'normal',
+				spacing_h: 'normal',
+				config: {
+					badge_text: 'Verified & Trusted',
+					headline_prefix: 'The Standard for ',
+					headline_accent: 'Verified Peptides',
+					subheadline:
+						'Independent testing. Full batch documentation. Reliable, tracked delivery.',
+					items: [
+						{
+							variant: 'pin',
+							headline: 'USA Manufactured',
+							description: 'Synthesized and packaged domestically. No overseas sourcing.',
+						},
+						{
+							variant: 'star',
+							headline: '5-Star Reviewed',
+							description: 'Rated 5 stars by verified customers.',
+						},
+						{
+							variant: 'lab',
+							headline: 'Third-Party Lab Tested',
+							description: 'Every batch independently verified before shipping.',
+						},
+						{
+							variant: 'award',
+							headline: 'Triple-Tested for Quality',
+							description: 'Purity, Content, and Endotoxin testing on every product.',
+						},
+					],
+					cta_label: 'Buy 1 Get 1 Free',
+					cta_href: '/shop',
+				},
+			},
+			{
+				type: 'product_slider',
+				visibility: 'all',
+				config: {
+					title: 'Featured',
+					source: 'all',
+					category: null,
+					product_ids: [],
+				},
+			},
+			{
+				type: 'order_handling',
+				visibility: 'all',
+				spacing_v: 'normal',
+				spacing_h: 'normal',
+				center_header: true,
+				config: {
+					badge_text: 'Our Process',
+					headline: 'How Every Order Is Handled',
+					subheadline:
+						'From verification to delivery, we ensure each step meets our highest standards.',
+					steps: [
+						{
+							variant: 'verified',
+							headline: 'Verified Batches',
+							description:
+								'Every batch undergoes rigorous quality control and verification before release.',
+						},
+						{
+							variant: 'lab',
+							headline: '3rd Party Testing',
+							description:
+								'Independent laboratory testing ensures purity and consistency you can trust.',
+						},
+						{
+							variant: 'shipping',
+							headline: 'Ships Same Day',
+							description:
+								'Discreetly packaged and dispatched within 24 hours from our U.S. facility.',
+						},
+						{
+							variant: 'support',
+							headline: '24/7 Support',
+							description:
+								'Round-the-clock customer service for any questions before or after your order.',
+						},
+					],
+					metrics_title: 'Quality Metrics',
+					metrics: [
+						{ value: '99.8%', label: 'Batch Accuracy' },
+						{ value: '100%', label: 'Verified Testing' },
+						{ value: '24/7', label: 'Support Response' },
+					],
+				},
+			},
+		],
 	},
 	review_write_enabled: true,
 	turnstile_site_key: '',
+	announcement_bar_enabled: true,
+	announcement_bar_items: [
+		'UP TO 40% OFF TODAY',
+		'Fast & Discreet Shipping',
+		'Third-Party Tested',
+		'Fulfilled in the USA',
+	],
 	header_links: [
+		{ label: 'Home', url: '/', display: 'text', icon: '', accent: false, mobile_pin: false },
 		{ label: 'Shop', url: '/shop', display: 'text', icon: '', accent: false, mobile_pin: false },
+		{ label: 'About', url: '/about', display: 'text', icon: '', accent: false, mobile_pin: false },
+		{ label: 'COA Library', url: '/coa-library', display: 'text', icon: '', accent: false, mobile_pin: false },
+		{ label: 'Contact', url: '/contact', display: 'text', icon: '', accent: false, mobile_pin: false },
 		{ label: 'Account', url: '/account', display: 'icon', icon: 'user', accent: true, mobile_pin: false },
 	],
 	header_toggle_accent: true,
@@ -561,19 +959,71 @@ const DEFAULTS: SiteConfig = {
 	header_inverted: false,
 	header_borderless: false,
 	mobile_hamburger_side: 'right',
-	header_show_toggle: true,
+	header_show_toggle: false,
 	header_toggle_mobile_pin: false,
 	header_cart_mobile_pin: true,
-	theme_default: 'system',
+	theme_default: 'light',
 	logo_invert_on_dark: true,
 	logo_size: 'standard',
-	brand_position: 'left',
+	brand_position: 'nav-center',
 	typography: { heading_font: 'inter', body_font: 'inter', heading_weight: 'semibold', body_size: 'm' },
 	seo_nosnippet_products: true,
 	pdp: {
 		show_reviews: true,
 		cross_sell_mode: 'simple',
 		modules: [],
+		coa_library_url: '',
+		bundle_bogo: {
+			enabled: true,
+			savings_pct: 50,
+			presets: [
+				{ paid_qty: 1, free_qty: 0, flag: '' },
+				{ paid_qty: 2, free_qty: 1, flag: 'MOST POPULAR' },
+				{ paid_qty: 3, free_qty: 2, flag: 'BEST VALUE' },
+			],
+		},
+		cross_sell: {
+			eyebrow: 'FREQUENTLY PAIRED',
+			title: 'Often ordered with',
+			subtitle: 'Researchers commonly add these to their order',
+			view_all_url: '/shop',
+		},
+		slide_cart: {
+			cross_sell_exclude_product_ids: [],
+			cross_sell_exclude_slugs: [...CART_CROSS_SELL_DEFAULT_EXCLUDE_SLUGS],
+		},
+		coa_section: {
+			enabled: true,
+			eyebrow: 'TRANSPARENCY',
+			title: 'Certificate of Analysis',
+			subtitle: 'Every batch independently verified by third-party laboratories.',
+			disclaimer:
+				'Certificates of Analysis are provided for informational purposes. Results apply to the specific batch tested. Products are sold for research use only.',
+			default_lab: 'Analytical Laboratories Inc.',
+			default_metrics: [
+				{ label: 'HPLC Purity', value: '≥99.4%' },
+				{ label: 'LC-MS Identity', value: 'Confirmed' },
+				{ label: 'Sterility', value: 'PASS' },
+				{ label: 'Contaminants', value: 'ND' },
+				{ label: 'Heavy Metals', value: '<20 ppb' },
+				{ label: 'TAMC / TYMC', value: 'PASS' },
+			],
+		},
+		verified_label: 'VERIFIED',
+		show_ships_banner: true,
+		show_payment_icons: true,
+		image_disclaimer: 'FOR RESEARCH PURPOSES ONLY',
+		features: [
+			{ icon: 'lab', label: 'Manufactured in US' },
+			{ icon: 'zap', label: 'Fastest in Trend' },
+			{ icon: 'shield', label: 'Independently Tested' },
+			{ icon: 'shipping', label: 'Same Day Shipping' },
+		],
+		trust_badges: [
+			{ icon: 'shipping', label: 'Faster shipping' },
+			{ icon: 'shield', label: '60-day guarantee' },
+			{ icon: 'lock', label: 'Secure checkout' },
+		],
 	},
 	shop: { modules: [], cols_min: 2, cols_max: 4, spacing_h: 'normal' },
 	pages: [],
@@ -581,10 +1031,10 @@ const DEFAULTS: SiteConfig = {
 	social_links: [],
 	product_card: {
 		media_aspect_ratio: '1:1',
-		corner_radius: 'square',
-		border: 'full',
-		hover_effect: 'lift',
-		button_style: 'outline',
+		corner_radius: 'round',
+		border: 'none',
+		hover_effect: 'shadow',
+		button_style: 'solid',
 		badge_position: 'top-right',
 		badge_style: 'filled',
 		show_bulk_badge: true,
@@ -613,6 +1063,156 @@ const DEFAULTS: SiteConfig = {
 	},
 	active_scripts: [],
 };
+
+const VALID_HERO_VARIANTS: HomepageHeroConfig['variant'][] = [
+	'text-only',
+	'research-motion',
+	'webgl-noise',
+	'webgl-variant-2',
+	'webgl-variant-3',
+	'webgl-variant-4',
+	'webgl-variant-5',
+	'webgl-variant-6',
+];
+
+function normalizeHeroVariant(raw: unknown): HomepageHeroConfig['variant'] {
+	const s = typeof raw === 'string' ? raw.trim() : '';
+	if (s && (VALID_HERO_VARIANTS as readonly string[]).includes(s)) {
+		return s as HomepageHeroConfig['variant'];
+	}
+	return DEFAULTS.homepage.hero.variant;
+}
+
+/** Where to seed feature_highlights — after BOGO when present, else before the catalog slider. */
+function legacyFeatureHighlightsInsertIndex(modules: HomepageModule[]): number {
+	const list = modules;
+	const svIdx = list.findIndex((m) => m?.type === 'split_value');
+	if (svIdx !== -1) {
+		let j = svIdx + 1;
+		while (j < list.length) {
+			const t = list[j]?.type;
+			if (t === 'trust_bar' || t === 'spacer') j++;
+			else break;
+		}
+		if (j < list.length && list[j]?.type === 'product_slider') return j;
+	}
+	const sliderIdx = list.findIndex((m) => m?.type === 'product_slider');
+	return sliderIdx >= 0 ? sliderIdx : -1;
+}
+
+function mergeHomepageModulesWithDefaultSplitValue(modules: HomepageModule[]): HomepageModule[] {
+	const list = Array.isArray(modules) ? [...modules] : [];
+	if (
+		HOMEPAGE_SPLIT_VALUE_ENABLED &&
+		!list.some((m) => m && m.type === 'split_value')
+	) {
+		const seed = DEFAULTS.homepage.modules.find((m) => m.type === 'split_value');
+		if (seed) {
+			list.unshift(JSON.parse(JSON.stringify(seed)) as HomepageModule);
+		}
+	}
+	const fhInsert = legacyFeatureHighlightsInsertIndex(list);
+	const needsLegacyFh =
+		!list.some((m) => m && m.type === 'feature_highlights') && fhInsert >= 0;
+	if (needsLegacyFh) {
+		const fhSeed = DEFAULTS.homepage.modules.find((m) => m.type === 'feature_highlights');
+		if (fhSeed) {
+			const copy = JSON.parse(JSON.stringify(fhSeed)) as HomepageModule;
+			list.splice(fhInsert, 0, copy);
+		}
+	}
+	return list;
+}
+
+function mergeHomepageModulesWithDefaultOrderHandling(modules: HomepageModule[]): HomepageModule[] {
+	const list = Array.isArray(modules) ? [...modules] : [];
+	if (list.some((m) => m && m.type === 'order_handling')) {
+		return list;
+	}
+	const seed = DEFAULTS.homepage.modules.find((m) => m.type === 'order_handling');
+	if (!seed) {
+		return list;
+	}
+	const copy = JSON.parse(JSON.stringify(seed)) as HomepageModule;
+	const accIdx = list.findIndex((m) => m?.type === 'accordion');
+	if (accIdx >= 0) {
+		list.splice(accIdx, 0, copy);
+	} else {
+		list.push(copy);
+	}
+	return list;
+}
+
+export function homepageModulesWithSplitValueAfterHero(modules: HomepageModule[]): HomepageModule[] {
+	const visible = modules.filter(isModuleVisibleNow);
+	const svIdx = visible.findIndex((m) => m.type === 'split_value');
+	let ordered = [...visible];
+	if (HOMEPAGE_SPLIT_VALUE_ENABLED && svIdx > 0) {
+		const [sv] = ordered.splice(svIdx, 1);
+		ordered.unshift(sv);
+	}
+	const fhIdx = ordered.findIndex((m) => m.type === 'feature_highlights');
+	const svPos = ordered.findIndex((m) => m.type === 'split_value');
+	if (
+		HOMEPAGE_SPLIT_VALUE_ENABLED &&
+		fhIdx !== -1 &&
+		svPos !== -1 &&
+		fhIdx !== svPos + 1
+	) {
+		const [fh] = ordered.splice(fhIdx, 1);
+		const insertAfter = ordered.findIndex((m) => m.type === 'split_value');
+		ordered.splice(insertAfter + 1, 0, fh);
+	} else if (fhIdx > 0 && (!HOMEPAGE_SPLIT_VALUE_ENABLED || svPos === -1)) {
+		const [fh] = ordered.splice(fhIdx, 1);
+		ordered.unshift(fh);
+	}
+	return ordered;
+}
+
+function mergeFetchedPdp(incoming: PdpConfig | undefined): PdpConfig {
+	const base = DEFAULTS.pdp;
+	const pdp = incoming ?? base;
+	const slide = { ...base.slide_cart, ...pdp.slide_cart };
+	return {
+		...base,
+		...pdp,
+		slide_cart: {
+			...slide,
+			cross_sell_exclude_slugs: [
+				...new Set([
+					...CART_CROSS_SELL_DEFAULT_EXCLUDE_SLUGS,
+					...(slide.cross_sell_exclude_slugs ?? []),
+				]),
+			],
+			cross_sell_exclude_product_ids: [
+				...new Set([
+					...(base.slide_cart?.cross_sell_exclude_product_ids ?? []),
+					...(slide.cross_sell_exclude_product_ids ?? []),
+				]),
+			],
+		},
+	};
+}
+
+/** REST replaces whole `homepage`; merge defaults into `hero` so new keys resolve without wiping merchant overrides. */
+function mergeFetchedHomepage(incoming: HomepageConfig | undefined): HomepageConfig {
+	const base = DEFAULTS.homepage;
+	const hp = incoming ?? base;
+	const rawHero = hp.hero ?? {};
+	const rawModules = Array.isArray(hp.modules) ? hp.modules : base.modules;
+	return {
+		...base,
+		...hp,
+		hero: {
+			...base.hero,
+			...rawHero,
+			variant: normalizeHeroVariant(rawHero.variant),
+		},
+		modules: mergeHomepageModulesWithDefaultOrderHandling(
+			mergeHomepageModulesWithDefaultSplitValue(rawModules)
+		),
+	};
+}
 
 class ConfigStore {
 	data = $state<SiteConfig>(DEFAULTS);
@@ -668,7 +1268,14 @@ class ConfigStore {
 				if (!json.wp_origin || typeof json.wp_origin !== 'string') {
 					throw new Error('config response missing wp_origin');
 				}
-				this.data = { ...DEFAULTS, ...json, features: { ...DEFAULTS.features, ...json.features } };
+				const mergedHomepage = mergeFetchedHomepage(json.homepage);
+				this.data = {
+					...DEFAULTS,
+					...json,
+					features: { ...DEFAULTS.features, ...json.features },
+					homepage: mergedHomepage,
+					pdp: mergeFetchedPdp(json.pdp),
+				};
 				this.ready = true;
 				this.error = null;
 				return this.data;
@@ -724,7 +1331,9 @@ class ConfigStore {
 			if (msg.homepage && typeof msg.homepage === 'object') {
 				const hp = msg.homepage as Partial<SiteConfig['homepage']>;
 				const currentHp = this.data.homepage;
-				const nextModules = hp.modules ? this.reResolveModules(hp.modules) : currentHp.modules;
+				const rawList = (hp.modules !== undefined ? hp.modules : currentHp.modules) as HomepageModule[];
+				const mergedList = mergeHomepageModulesWithDefaultSplitValue(rawList);
+				const nextModules = this.reResolveModules(mergedList) as SiteConfig['homepage']['modules'];
 				this.data = {
 					...this.data,
 					homepage: {

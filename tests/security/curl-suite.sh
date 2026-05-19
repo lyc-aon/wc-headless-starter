@@ -257,7 +257,7 @@ check_redirect() {
 	# Base64 the return URL to avoid shell quoting hell across special chars.
 	local b64
 	b64=$(printf '%s' "$return_url" | base64 -w0)
-	resolved=$(docker compose -f "$(dirname "$0")/../../docker-compose.yml" exec -T -u 33:33 wpcli php -d memory_limit=256M -r "
+	resolved=$("$(dirname "$0")/../../scripts/wchs-compose.sh" exec -T -u 33:33 wpcli php -d memory_limit=256M -r "
 		\$url = base64_decode('$b64');
 		\$_GET['return'] = \$url;
 		\$_REQUEST['return'] = \$url;
@@ -327,7 +327,7 @@ section "Session row defensive"
 # rejects foreign keys. We can't easily inject a poisoned session row without
 # direct DB access, so we verify the guard function exists and the allowlist
 # constant has the expected shape.
-HAS_GUARD=$(docker compose -f "$(dirname "$0")/../../docker-compose.yml" exec -T -u 33:33 wpcli php -d memory_limit=256M -r "
+HAS_GUARD=$("$(dirname "$0")/../../scripts/wchs-compose.sh" exec -T -u 33:33 wpcli php -d memory_limit=256M -r "
 	define('ABSPATH', '/var/www/html/');
 	require '/var/www/html/wp-load.php';
 	echo defined('WCHS_BRIDGE_KEYS') ? 'YES' : 'NO';

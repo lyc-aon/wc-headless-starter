@@ -16,6 +16,7 @@
  *   POST   /wp-json/wchs/v1/newsletter                — newsletter signup
  *   POST   /wp-json/wchs/v1/contact                   — contact form submit
  *   GET    /wp-json/wchs/v1/order-payment/{id}?key=   — thank-you/payment details
+ *   GET    /wp-json/wchs/v1/coa-library               — products with COA PDFs attached
  *
  * Security posture
  *   - Reviews: public, read-only, capped at 20 per request, only "approved"
@@ -29,6 +30,245 @@
  */
 
 defined( 'ABSPATH' ) || exit;
+
+/**
+ * When a split_value module has no hero image, use the first published
+ * product's featured (or first gallery) image from the catalog.
+ *
+ * @param array<int, array<string, mixed>> $mods Homepage/shop/page modules.
+ * @return array<int, array<string, mixed>>
+ */
+function wchs_enrich_split_value_module_images( array $mods ): array {
+	static $fallback = null;
+	$out             = [];
+	foreach ( $mods as $m ) {
+		if ( ! is_array( $m ) ) {
+			continue;
+		}
+		if ( ( $m['type'] ?? '' ) !== 'split_value' ) {
+			$out[] = $m;
+			continue;
+		}
+		$cfg = is_array( $m['config'] ?? null ) ? $m['config'] : [];
+		if ( ! empty( $cfg['image'] ) ) {
+			$out[] = $m;
+			continue;
+		}
+		if ( null === $fallback ) {
+			$fallback = [ 'src' => '', 'alt' => '' ];
+			$uploads  = wp_upload_dir();
+			if ( empty( $uploads['error'] ) ) {
+				$rel = '2026/05/e33abf7d-1bcf-42ea-b324-c777cec4006d.webp';
+				$abs = trailingslashit( $uploads['basedir'] ) . $rel;
+				if ( file_exists( $abs ) ) {
+					$fallback = [
+						'src' => trailingslashit( $uploads['baseurl'] ) . $rel,
+						'alt' => 'Research-grade peptides — product lineup',
+					];
+				}
+			}
+			if ( '' === $fallback['src'] && function_exists( 'wc_get_products' ) ) {
+				$products = wc_get_products(
+					[
+						'status'  => 'publish',
+						'limit'   => 1,
+						'orderby' => 'menu_order',
+						'order'   => 'ASC',
+					]
+				);
+				$p = ( is_array( $products ) && isset( $products[0] ) && $products[0] instanceof \WC_Product )
+					? $products[0]
+					: null;
+				if ( $p ) {
+					$img_id = (int) $p->get_image_id();
+					$src    = '';
+					if ( $img_id ) {
+						$src = (string) ( wp_get_attachment_image_url( $img_id, 'woocommerce_single' )
+							?: wp_get_attachment_image_url( $img_id, 'large' ) );
+					}
+					if ( '' === $src ) {
+						$gids = $p->get_gallery_image_ids();
+						if ( ! empty( $gids[0] ) ) {
+							$src = (string) ( wp_get_attachment_image_url( (int) $gids[0], 'large' ) ?: '' );
+						}
+					}
+					if ( '' !== $src ) {
+						$fallback = [
+							'src' => $src,
+							'alt' => (string) $p->get_name(),
+						];
+					}
+				}
+			}
+		}
+		if ( ! empty( $fallback['src'] ) ) {
+			$cfg['image'] = $fallback['src'];
+			if ( ! isset( $cfg['image_alt'] ) || ! is_string( $cfg['image_alt'] ) || '' === trim( $cfg['image_alt'] ) ) {
+				$cfg['image_alt'] = $fallback['alt'];
+			}
+		}
+		$m['config'] = $cfg;
+		$out[]       = $m;
+	}
+	return $out;
+}
+
+/**
+ * Insert default feature_highlights before the catalog slider when the saved
+ * homepage predates that module. Allows legacy trust_bar rows between
+ * split_value and product_slider (the storefront hides trust_bar but it stays in JSON).
+ *
+ * @param array<int, array<string, mixed>> $mods
+ * @return array<int, array<string, mixed>>
+ */
+function wchs_homepage_feature_highlights_insert_index( array $mods ): int {
+	$n = count( $mods );
+	for ( $i = 0; $i < $n; $i++ ) {
+		$m = $mods[ $i ] ?? null;
+		if ( ! is_array( $m ) || ( $m['type'] ?? '' ) !== 'split_value' ) {
+			continue;
+		}
+		$j = $i + 1;
+		while ( $j < $n && is_array( $mods[ $j ] ?? null ) ) {
+			$gap_type = $mods[ $j ]['type'] ?? '';
+			if ( 'trust_bar' === $gap_type || 'spacer' === $gap_type ) {
+				$j++;
+				continue;
+			}
+			break;
+		}
+		if ( $j < $n && is_array( $mods[ $j ] ?? null ) && ( $mods[ $j ]['type'] ?? '' ) === 'product_slider' ) {
+			return $j;
+		}
+	}
+	for ( $i = 0; $i < $n; $i++ ) {
+		if ( is_array( $mods[ $i ] ?? null ) && ( $mods[ $i ]['type'] ?? '' ) === 'product_slider' ) {
+			return $i;
+		}
+	}
+	return -1;
+}
+
+function wchs_homepage_ensure_feature_highlights_module( array $mods ): array {
+	foreach ( $mods as $m ) {
+		if ( is_array( $m ) && ( $m['type'] ?? '' ) === 'feature_highlights' ) {
+			return $mods;
+		}
+	}
+	if ( ! class_exists( '\\WCHS\\Admin\\AdminPage' ) ) {
+		return $mods;
+	}
+	$j = wchs_homepage_feature_highlights_insert_index( $mods );
+	if ( $j < 0 ) {
+		return $mods;
+	}
+	$defaults = \WCHS\Admin\AdminPage::homepage_defaults();
+	$seed_row = null;
+	foreach ( (array) ( $defaults['modules'] ?? [] ) as $dm ) {
+		if ( is_array( $dm ) && ( $dm['type'] ?? '' ) === 'feature_highlights' ) {
+			$seed_row = $dm;
+			break;
+		}
+	}
+	if ( ! $seed_row ) {
+		return $mods;
+	}
+	$seed = json_decode( wp_json_encode( $seed_row ), true );
+	if ( ! is_array( $seed ) ) {
+		return $mods;
+	}
+	if ( empty( $seed['id'] ) || ! preg_match( '/^[a-z0-9]{8}$/', (string) $seed['id'] ) ) {
+		$seed['id'] = substr( str_replace( '-', '', wp_generate_uuid4() ), 0, 8 );
+	}
+	array_splice( $mods, $j, 0, [ $seed ] );
+	return $mods;
+}
+
+/**
+ * Insert default order_handling immediately before the first accordion module.
+ *
+ * @param array<int, array<string, mixed>> $mods
+ * @return array<int, array<string, mixed>>
+ */
+function wchs_homepage_ensure_order_handling_module( array $mods ): array {
+	foreach ( $mods as $m ) {
+		if ( is_array( $m ) && ( $m['type'] ?? '' ) === 'order_handling' ) {
+			return $mods;
+		}
+	}
+	if ( ! class_exists( '\\WCHS\\Admin\\AdminPage' ) ) {
+		return $mods;
+	}
+	$acc_idx = -1;
+	for ( $i = 0, $n = count( $mods ); $i < $n; $i++ ) {
+		if ( is_array( $mods[ $i ] ?? null ) && ( $mods[ $i ]['type'] ?? '' ) === 'accordion' ) {
+			$acc_idx = $i;
+			break;
+		}
+	}
+	if ( $acc_idx < 0 ) {
+		return $mods;
+	}
+	$defaults = \WCHS\Admin\AdminPage::homepage_defaults();
+	$seed_row = null;
+	foreach ( (array) ( $defaults['modules'] ?? [] ) as $dm ) {
+		if ( is_array( $dm ) && ( $dm['type'] ?? '' ) === 'order_handling' ) {
+			$seed_row = $dm;
+			break;
+		}
+	}
+	if ( ! $seed_row ) {
+		$seed_row = [
+			'type'          => 'order_handling',
+			'visibility'    => 'all',
+			'spacing_v'     => 'normal',
+			'spacing_h'     => 'normal',
+			'center_header' => true,
+			'config'        => [
+				'badge_text'    => 'Our Process',
+				'headline'      => 'How Every Order Is Handled',
+				'subheadline'   => 'From verification to delivery, we ensure each step meets our highest standards.',
+				'steps'         => [
+					[
+						'variant'     => 'verified',
+						'headline'    => 'Verified Batches',
+						'description' => 'Every batch undergoes rigorous quality control and verification before release.',
+					],
+					[
+						'variant'     => 'lab',
+						'headline'    => '3rd Party Testing',
+						'description' => 'Independent laboratory testing ensures purity and consistency you can trust.',
+					],
+					[
+						'variant'     => 'shipping',
+						'headline'    => 'Ships Same Day',
+						'description' => 'Discreetly packaged and dispatched within 24 hours from our U.S. facility.',
+					],
+					[
+						'variant'     => 'support',
+						'headline'    => '24/7 Support',
+						'description' => 'Round-the-clock customer service for any questions before or after your order.',
+					],
+				],
+				'metrics_title' => 'Quality Metrics',
+				'metrics'       => [
+					[ 'value' => '99.8%', 'label' => 'Batch Accuracy' ],
+					[ 'value' => '100%', 'label' => 'Verified Testing' ],
+					[ 'value' => '24/7', 'label' => 'Support Response' ],
+				],
+			],
+		];
+	}
+	$seed = json_decode( wp_json_encode( $seed_row ), true );
+	if ( ! is_array( $seed ) ) {
+		return $mods;
+	}
+	if ( empty( $seed['id'] ) || ! preg_match( '/^[a-z0-9]{8}$/', (string) $seed['id'] ) ) {
+		$seed['id'] = substr( str_replace( '-', '', wp_generate_uuid4() ), 0, 8 );
+	}
+	array_splice( $mods, $acc_idx, 0, [ $seed ] );
+	return $mods;
+}
 
 /**
  * Prevent stale domain/origin drift from host-level caches after cutovers.
@@ -117,6 +357,7 @@ function wchs_rest_rate_limit( string $bucket ): bool {
 		'my-orders'      => 30,
 		'session'        => 120,
 		'session_delete' => 10,
+		'coa_library'    => 60,
 	];
 	$max = $limits[ $bucket ] ?? 10;
 
@@ -350,8 +591,115 @@ add_action(
 				],
 			]
 		);
+
+		register_rest_route(
+			'wchs/v1',
+			'/coa-library',
+			[
+				'methods'             => 'GET',
+				'callback'            => 'wchs_rest_coa_library',
+				'permission_callback' => '__return_true',
+			]
+		);
 	}
 );
+
+/**
+ * GET /wchs/v1/coa-library — published products/variations with a COA PDF URL.
+ *
+ * @return \WP_REST_Response|\WP_Error
+ */
+function wchs_rest_coa_library( \WP_REST_Request $request ) {
+	if ( ! wchs_rest_rate_limit( 'coa_library' ) ) {
+		return new \WP_Error( 'rate_limited', 'Too many requests', [ 'status' => 429 ] );
+	}
+
+	if ( ! function_exists( 'wc_get_product' ) ) {
+		return rest_ensure_response( [ 'products' => [] ] );
+	}
+
+	$ids = get_posts(
+		[
+			'post_type'      => [ 'product', 'product_variation' ],
+			'post_status'    => 'publish',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'meta_query'     => [
+				[
+					'key'     => '_wchs_coa_url',
+					'value'   => '',
+					'compare' => '!=',
+				],
+			],
+		]
+	);
+
+	$groups = [];
+
+	foreach ( $ids as $post_id ) {
+		$post_id = (int) $post_id;
+		$product = wc_get_product( $post_id );
+		if ( ! $product ) {
+			continue;
+		}
+
+		$url = esc_url_raw( (string) get_post_meta( $post_id, '_wchs_coa_url', true ) );
+		if ( '' === $url ) {
+			continue;
+		}
+
+		$parent_id = (int) $product->get_parent_id();
+		if ( $parent_id > 0 ) {
+			$parent = wc_get_product( $parent_id );
+			if ( ! $parent || 'publish' !== $parent->get_status() ) {
+				continue;
+			}
+			$group_id = $parent_id;
+			$name     = $parent->get_name();
+			$slug     = $parent->get_slug();
+		} else {
+			$group_id = $post_id;
+			$name     = $product->get_name();
+			$slug     = $product->get_slug();
+		}
+
+		$variation_label = '';
+		if ( $parent_id > 0 && function_exists( 'wc_get_formatted_variation' ) ) {
+			$variation_label = wc_get_formatted_variation( $product, true, false );
+		}
+
+		$post     = get_post( $post_id );
+		$modified = $post instanceof \WP_Post ? get_post_modified_time( 'c', false, $post ) : '';
+
+		if ( ! isset( $groups[ $group_id ] ) ) {
+			$groups[ $group_id ] = [
+				'id'           => $group_id,
+				'name'         => $name,
+				'slug'         => $slug,
+				'certificates' => [],
+			];
+		}
+
+		$groups[ $group_id ]['certificates'][] = [
+			'id'              => $post_id,
+			'variation_label' => $variation_label,
+			'coa_url'         => $url,
+			'batch'           => (string) get_post_meta( $post_id, '_wchs_coa_batch', true ),
+			'lab'             => (string) get_post_meta( $post_id, '_wchs_coa_lab', true ),
+			'tested'          => $modified,
+		];
+	}
+
+	$list = array_values( $groups );
+	usort(
+		$list,
+		static function ( array $a, array $b ): int {
+			return strcasecmp( (string) $a['name'], (string) $b['name'] );
+		}
+	);
+
+	return rest_ensure_response( [ 'products' => $list ] );
+}
 
 /**
  * POST /wchs/v1/newsletter — footer newsletter signup.
@@ -680,6 +1028,8 @@ function wchs_rest_config( \WP_REST_Request $request ) {
 		return $mods;
 	};
 	$homepage['modules'] = $_migrate_mods( $homepage['modules'] ?? [] );
+	$homepage['modules'] = wchs_homepage_ensure_feature_highlights_module( $homepage['modules'] );
+	$homepage['modules'] = wchs_homepage_ensure_order_handling_module( $homepage['modules'] );
 
 	// Merge site defaults + per-module overrides into a `resolved` block on
 	// each module. SPA components read module.resolved instead of
@@ -691,7 +1041,7 @@ function wchs_rest_config( \WP_REST_Request $request ) {
 		}
 		return \WCHS\Admin\ResolverService::resolve_modules( $mods, $site_settings );
 	};
-	$homepage['modules'] = $_resolve_mods( $homepage['modules'] );
+	$homepage['modules'] = wchs_enrich_split_value_module_images( $_resolve_mods( $homepage['modules'] ) );
 
 	// Auto-detect free-shipping threshold from WC shipping zones. The
 	// cart uses this to render an "Add $X more for FREE shipping" bar.
@@ -720,6 +1070,31 @@ function wchs_rest_config( \WP_REST_Request $request ) {
 	}
 	$pdp            = \WCHS\Admin\AdminPage::get_pdp_config();
 	$pdp['modules'] = $_resolve_mods( $_migrate_mods( $pdp['modules'] ?? [] ) );
+	if ( function_exists( 'wchs_cro_cart_cross_sell_default_exclude_slugs' ) ) {
+		$slide = is_array( $pdp['slide_cart'] ?? null ) ? $pdp['slide_cart'] : [];
+		$slide['cross_sell_exclude_slugs'] = array_values(
+			array_unique(
+				array_merge(
+					wchs_cro_cart_cross_sell_default_exclude_slugs(),
+					(array) ( $slide['cross_sell_exclude_slugs'] ?? [] )
+				)
+			)
+		);
+		if ( function_exists( 'wchs_cro_cart_cross_sell_excluded_product_ids' ) ) {
+			$slide['cross_sell_exclude_product_ids'] = array_values(
+				array_unique(
+					array_map(
+						'intval',
+						array_merge(
+							(array) ( $slide['cross_sell_exclude_product_ids'] ?? [] ),
+							wchs_cro_cart_cross_sell_excluded_product_ids()
+						)
+					)
+				)
+			);
+		}
+		$pdp['slide_cart'] = $slide;
+	}
 	$shop_cfg       = \WCHS\Admin\AdminPage::get_shop_config();
 	$shop_cfg['modules'] = $_resolve_mods( $_migrate_mods( $shop_cfg['modules'] ?? [] ) );
 	if ( ! isset( $shop_cfg['spacing_h'] ) && isset( $shop_cfg['edge_to_edge'] ) ) {
@@ -753,7 +1128,7 @@ function wchs_rest_config( \WP_REST_Request $request ) {
 		'shipping_free_threshold' => $shipping_free_threshold,
 		'features'        => [
 			'guest_checkout' => (bool) ( 'yes' === get_option( 'woocommerce_enable_guest_checkout', 'yes' ) ),
-			'dark_mode'      => true,
+			'dark_mode'      => false,
 			'pretext'        => true,
 		],
 		'version'         => '0.1.0',
@@ -773,8 +1148,20 @@ function wchs_rest_config( \WP_REST_Request $request ) {
 		'review_write_enabled' => function_exists( 'wchs_get_review_provider' ) ? wchs_get_review_provider()->supports_write() : true,
 		'turnstile_site_key' => ! empty( $site_settings['anti_bot_enabled'] ) ? ( $site_settings['turnstile_site_key'] ?? '' ) : '',
 		'internal_rate_limit_enabled' => (bool) ( $site_settings['internal_rate_limit_enabled'] ?? true ),
+		'announcement_bar_enabled' => (bool) ( $site_settings['announcement_bar_enabled'] ?? true ),
+		'announcement_bar_items'   => array_values(
+			array_filter(
+				array_map(
+					'strval',
+					is_array( $site_settings['announcement_bar_items'] ?? null )
+						? $site_settings['announcement_bar_items']
+						: []
+				)
+			)
+		),
 		'header_links'    => $site_settings['header_links'] ?? [
 			[ 'label' => 'Shop', 'url' => '/shop', 'display' => 'text', 'icon' => '', 'accent' => false, 'mobile_pin' => false ],
+			[ 'label' => 'COA Library', 'url' => '/coa-library', 'display' => 'text', 'icon' => '', 'accent' => false, 'mobile_pin' => false ],
 			[ 'label' => 'Account', 'url' => '/account', 'display' => 'icon', 'icon' => 'user', 'accent' => true, 'mobile_pin' => false ],
 		],
 		'header_toggle_accent'     => $site_settings['header_toggle_accent'] ?? true,
@@ -788,7 +1175,7 @@ function wchs_rest_config( \WP_REST_Request $request ) {
 		'theme_default'            => in_array( $site_settings['theme_default'] ?? 'system', [ 'system', 'light', 'dark' ], true ) ? ( $site_settings['theme_default'] ?? 'system' ) : 'system',
 		'logo_invert_on_dark'      => (bool) ( $site_settings['logo_invert_on_dark'] ?? true ),
 		'logo_size'                => in_array( $site_settings['logo_size'] ?? 'standard', [ 'compact', 'standard', 'prominent', 'xl' ], true ) ? ( $site_settings['logo_size'] ?? 'standard' ) : 'standard',
-		'brand_position'           => in_array( $site_settings['brand_position'] ?? 'left', [ 'left', 'center' ], true ) ? ( $site_settings['brand_position'] ?? 'left' ) : 'left',
+		'brand_position'           => in_array( $site_settings['brand_position'] ?? 'left', [ 'left', 'center', 'nav-center' ], true ) ? ( $site_settings['brand_position'] ?? 'left' ) : 'left',
 		'typography'               => [
 			'heading_font'   => $site_settings['typography_heading_font'] ?? 'inter',
 			'body_font'      => $site_settings['typography_body_font'] ?? 'inter',
@@ -858,7 +1245,7 @@ function wchs_rest_config( \WP_REST_Request $request ) {
  *     (e.g. if gtm_id is set under Integrations, we skip active_scripts[gtm]).
  *
  * Returned shape:
- *   [ { id, name, src, async, defer, placement, surfaces }, ... ]
+ *   [ { id, name, src, async, defer, placement, surfaces, category, mark, inline? }, ... ]
  */
 function wchs_build_active_scripts( array $site_settings ): array {
 	$registry = \WCHS\Admin\AdminPage::get_script_registry();
@@ -907,7 +1294,15 @@ function wchs_build_active_scripts( array $site_settings ): array {
 				$query[ $k ] = $params[ $k ];
 			}
 		}
-		$src = add_query_arg( $query, $entry['src_template'] );
+		$inline_only = ! empty( $entry['inline_only'] );
+		$inline      = isset( $entry['inline'] ) && is_string( $entry['inline'] ) ? $entry['inline'] : '';
+		$src         = $inline_only ? '' : esc_url_raw( add_query_arg( $query, $entry['src_template'] ) );
+		if ( $inline_only && $inline === '' ) {
+			continue;
+		}
+		if ( ! $inline_only && $src === '' ) {
+			continue;
+		}
 
 		$allowed_categories = [ 'analytics', 'pixel', 'marketing', 'consent', 'chat', 'other' ];
 		$category = ( is_string( $entry['category'] ?? null ) && in_array( $entry['category'], $allowed_categories, true ) )
@@ -916,10 +1311,10 @@ function wchs_build_active_scripts( array $site_settings ): array {
 			? strtoupper( substr( $entry['mark'], 0, 3 ) )
 			: strtoupper( substr( (string) ( $entry['name'] ?? $id ), 0, 2 ) );
 
-		$out[] = [
+		$out_row = [
 			'id'        => $id,
 			'name'      => $entry['name'] ?? $id,
-			'src'       => esc_url_raw( $src ),
+			'src'       => $src,
 			'async'     => ! empty( $entry['attributes']['async'] ),
 			'defer'     => ! empty( $entry['attributes']['defer'] ),
 			'placement' => in_array( $entry['placement'] ?? 'head', [ 'head', 'body_end' ], true ) ? $entry['placement'] : 'head',
@@ -930,6 +1325,10 @@ function wchs_build_active_scripts( array $site_settings ): array {
 			'category'  => $category,
 			'mark'      => $mark,
 		];
+		if ( $inline !== '' ) {
+			$out_row['inline'] = $inline;
+		}
+		$out[] = $out_row;
 	}
 
 	return $out;

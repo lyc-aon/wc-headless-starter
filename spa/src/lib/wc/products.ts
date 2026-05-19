@@ -1,4 +1,11 @@
 import { request } from './store-api';
+import { isCartCrossSellBlockedProduct } from '$lib/config.svelte';
+import { canPurchase } from './stock';
+
+/** Drop ancillary products (shipping protection, BAC water) from storefront listings. */
+export function filterCatalogProducts(products: StoreProduct[]): StoreProduct[] {
+	return products.filter((p) => !isCartCrossSellBlockedProduct(p.id, p.slug));
+}
 
 export type StoreProductAttributeTerm = { id: number; name: string; slug: string; default?: boolean };
 
@@ -27,11 +34,17 @@ export type WchsCroTierRow = {
 	line_total_at_min_qty: number;
 };
 
+export type WchsCoaMetric = { label: string; value: string };
+
 export type WchsCroProduct = {
 	regular_price: number;
 	tier_type: 'fixed' | 'percentage' | null;
 	tiers: WchsCroTierRow[];
 	cross_sell_ids: number[];
+	coa_url?: string;
+	coa_batch?: string;
+	coa_lab?: string;
+	coa_metrics?: WchsCoaMetric[];
 };
 
 export type StoreProductCategory = { id: number; name: string; slug: string };
@@ -99,14 +112,15 @@ export type ProductListParams = {
 	on_sale?: boolean;
 	search?: string;
 	category?: string;
-	orderby?: 'date' | 'popularity' | 'price' | 'rating' | 'menu_order' | 'title';
+	orderby?: 'date' | 'popularity' | 'price' | 'rating' | 'title';
 	order?: 'asc' | 'desc';
 	min_price?: number;
 	max_price?: number;
 };
 
 export async function listProducts(params: ProductListParams = {}): Promise<StoreProduct[]> {
-	return request<StoreProduct[]>('/products', { query: params });
+	const rows = await request<StoreProduct[]>('/products', { query: params });
+	return filterCatalogProducts(rows);
 }
 
 export type StoreCategory = {
@@ -115,15 +129,20 @@ export type StoreCategory = {
 	slug: string;
 	count: number;
 	parent: number;
+	description?: string;
 };
 
-export async function listCategories(): Promise<StoreCategory[]> {
-	return request<StoreCategory[]>('/products/categories', { query: { per_page: 100 } });
+export async function listCategories(opts?: { parent?: number }): Promise<StoreCategory[]> {
+	const query: Record<string, string | number> = { per_page: 100, orderby: 'name', order: 'asc' };
+	if (opts?.parent !== undefined) query.parent = opts.parent;
+	return request<StoreCategory[]>('/products/categories', { query });
 }
 
 export async function getProduct(slug: string): Promise<StoreProduct | null> {
 	const results = await request<StoreProduct[]>('/products', { query: { slug } });
-	return results[0] ?? null;
+	const product = results[0] ?? null;
+	if (product && isCartCrossSellBlockedProduct(product.id, product.slug)) return null;
+	return product;
 }
 
 /**
@@ -133,9 +152,10 @@ export async function getProduct(slug: string): Promise<StoreProduct | null> {
  */
 export async function getProductsByIds(ids: number[]): Promise<StoreProduct[]> {
 	if (ids.length === 0) return [];
-	return request<StoreProduct[]>('/products', {
+	const rows = await request<StoreProduct[]>('/products', {
 		query: { include: ids.join(','), per_page: ids.length }
 	});
+	return filterCatalogProducts(rows);
 }
 
 /**
@@ -162,6 +182,44 @@ export function findVariationId(
 		const match = v.attributes.every((attr) => selection[attr.name] === attr.value);
 		const complete = v.attributes.every((attr) => selection[attr.name] !== undefined);
 		if (match && complete) return v.id;
+	}
+	return null;
+}
+
+/** Build a selection map from variation attribute rows. */
+export function selectionFromVariationAttrs(
+	attrs: { name: string; value: string }[]
+): Record<string, string> {
+	const sel: Record<string, string> = {};
+	for (const a of attrs) sel[a.name] = a.value;
+	return sel;
+}
+
+/**
+ * Prefer WC default attributes when that variation is purchasable; otherwise
+ * the first in-stock variation. Returns null when nothing can be bought.
+ */
+export function findPurchasableDefaultSelection(
+	product: StoreProduct,
+	variations: StoreProductVariation[]
+): Record<string, string> | null {
+	if (!product.has_options || product.attributes.length === 0) return null;
+
+	const defaults: Record<string, string> = {};
+	for (const attr of product.attributes) {
+		const def = attr.terms?.find((t) => t.default);
+		if (def) defaults[attr.name] = def.name;
+	}
+	if (Object.keys(defaults).length === product.attributes.length) {
+		const id = findVariationId(product.variations, defaults);
+		const v = variations.find((x) => x.id === id);
+		if (v && canPurchase(v)) return defaults;
+	}
+
+	for (const ref of product.variations) {
+		const v = variations.find((x) => x.id === ref.id);
+		if (!v || !canPurchase(v)) continue;
+		return selectionFromVariationAttrs(ref.attributes);
 	}
 	return null;
 }

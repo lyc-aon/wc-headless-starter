@@ -4634,6 +4634,38 @@ class AdminPage {
 			<?php $this->render_module_common_fields(); ?>
 		</div>
 
+		<!-- Listicle -->
+		<div id="wchs-mod-tpl-listicle" style="display:none">
+			<div class="wchs-module__fields" style="display:flex;flex-direction:column;gap:14px">
+				<div class="wchs-field wchs-field--full"><label>Headline</label><input type="text" data-field="lc_headline" placeholder="5 Reasons Why…" /></div>
+				<div class="wchs-field wchs-field--full"><label>Intro paragraphs</label><textarea rows="6" data-field="lc_intro" data-wysiwyg="1" placeholder="Opening copy above the numbered list…"></textarea></div>
+				<div class="wchs-field wchs-field--full"><label>Closing paragraph (optional)</label><textarea rows="3" data-field="lc_closing" data-wysiwyg="1" placeholder="So why have researchers switched…"></textarea></div>
+				<div class="wchs-field wchs-field--full">
+					<label>Numbered points</label>
+					<div class="wchs-listicle-items wchs-accordion-items" style="display:flex;flex-direction:column;gap:10px">
+						<div class="wchs-accordion-item wchs-listicle-item" style="display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid #ddd;background:#fafafa">
+							<label style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#999;margin:0">Point headline</label>
+							<input type="text" placeholder="Headline for this point" />
+							<label style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#999;margin:8px 0 0">Body</label>
+							<textarea rows="4" placeholder="Supporting copy" data-wysiwyg="1"></textarea>
+							<button type="button" class="wchs-accordion-item__remove" title="Remove">✕</button>
+						</div>
+					</div>
+					<button type="button" class="wchs-btn wchs-btn--secondary wchs-add-listicle-item-modal" style="margin-top:10px">+ Add point</button>
+				</div>
+				<div class="wchs-field wchs-field--full"><label>CTA label</label><input type="text" data-field="lc_cta_label" placeholder="Shop research-grade peptides" /></div>
+				<div class="wchs-field wchs-field--full"><label>CTA link</label><input type="text" data-field="lc_cta_href" placeholder="/shop" /></div>
+			</div>
+			<div class="wchs-field wchs-overrides-row" style="margin-top:12px;padding-top:12px;border-top:1px solid #e5e5e5">
+				<label style="display:inline-flex;align-items:center;gap:6px;font-weight:500">
+					Accent color override
+					<?php echo self::hint_icon( 'Number badges and CTA use this accent.' ); ?>
+				</label>
+				<?php echo self::accent_override_swatches(); ?>
+			</div>
+			<?php $this->render_module_common_fields(); ?>
+		</div>
+
 		<!-- Text Block -->
 		<div id="wchs-mod-tpl-text_block" style="display:none">
 			<div class="wchs-module__fields">

@@ -239,6 +239,20 @@ export type TrustBarModuleConfig = {
 
 export type TextBlockComparisonRow = { heading: string };
 
+export type ListicleItem = {
+	headline: string;
+	body?: string;
+};
+
+export type ListicleModuleConfig = {
+	headline?: string;
+	intro?: string;
+	closing?: string;
+	items?: ListicleItem[];
+	cta_label?: string;
+	cta_href?: string;
+};
+
 export type TextBlockModuleConfig = {
 	layout?: 'auto' | 'standard' | 'comparison';
 	title: string;
@@ -410,6 +424,7 @@ export type HomepageModule =
 	| (ModuleBase & { type: 'accordion'; config: AccordionModuleConfig })
 	| (ModuleBase & { type: 'trust_bar'; config: TrustBarModuleConfig })
 	| (ModuleBase & { type: 'text_block'; config: TextBlockModuleConfig })
+	| (ModuleBase & { type: 'listicle'; config: ListicleModuleConfig })
 	| (ModuleBase & { type: 'gallery'; config: GalleryModuleConfig })
 	| (ModuleBase & { type: 'category_grid'; config: CategoryGridModuleConfig })
 	| (ModuleBase & { type: 'split_features'; config: SplitFeaturesModuleConfig })

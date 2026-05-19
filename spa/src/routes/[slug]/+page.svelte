@@ -21,10 +21,15 @@
 	import Spacer from '$lib/components/Spacer.svelte';
 	import LogoStrip from '$lib/components/LogoStrip.svelte';
 	import Video from '$lib/components/Video.svelte';
+	import Listicle from '$lib/components/Listicle.svelte';
 	import SEO from '$lib/components/SEO.svelte';
 
 	const pageData = $derived(
 		config.data.pages?.find(p => p.slug === (page.params.slug ?? '')) ?? null
+	);
+
+	const hidePageTitle = $derived(
+		(pageData?.modules?.filter(isModuleVisibleNow) ?? [])[0]?.type === 'listicle'
 	);
 
 	// Derive a description from the first text/gallery/trust module if
@@ -106,8 +111,10 @@
 
 <AccessGate requires="products">
 {#if pageData}
-	<article class="content-page">
-		<h1 class="content-page__title">{pageData.title}</h1>
+	<article class="content-page" class:content-page--listicle={hidePageTitle}>
+		{#if !hidePageTitle}
+			<h1 class="content-page__title">{pageData.title}</h1>
+		{/if}
 
 		{#each pageData.modules.filter(isModuleVisibleNow) as mod}
 			<div class="wchs-mod-wrap" data-module-type={mod.type} data-module-id={mod.id ?? ''} style="display: contents">
@@ -121,6 +128,8 @@
 					<Accordion config={mod.config} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
 				{:else if mod.type === 'trust_bar'}
 					<TrustBar config={mod.config} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} resolved={mod.resolved} />
+				{:else if mod.type === 'listicle'}
+					<Listicle config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} />
 				{:else if mod.type === 'text_block'}
 					<TextBlock config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
 				{:else if mod.type === 'gallery'}
@@ -165,6 +174,10 @@
 		max-width: 1440px;
 		margin: 0 auto;
 		padding: 56px 28px 64px;
+	}
+	.content-page--listicle {
+		max-width: none;
+		padding: 0;
 	}
 	.content-page__title {
 		font-family: var(--font-heading, var(--font-sans));

@@ -209,6 +209,7 @@
 		product_slider: ['homepage','shop','pdp','pages'],
 		review_slider: ['homepage','shop','pdp','pages'],
 		text_block: ['homepage','shop','pdp','pages'],
+		listicle: ['homepage','shop','pdp','pages'],
 		accordion: ['homepage','shop','pdp','pages'],
 		gallery: ['homepage','shop','pdp','pages'],
 		cta: ['homepage','shop','pdp','pages'],
@@ -311,6 +312,37 @@
 					{ variant: 'award', headline: 'Triple-Tested for Quality', description: 'Purity, Content, and Endotoxin testing on every product.' },
 				],
 				cta_label: 'Buy 1 Get 1 Free',
+				cta_href: '/shop',
+			};
+		}
+		if (type === 'listicle') {
+			return {
+				headline: '5 Reasons Researchers Choose Verified Peptide Suppliers Over Gray-Market Listings',
+				intro: '<p>Many labs still source peptides from unverified sellers because the price looks right and the listing looks legitimate.</p><p>That shortcut often means missing batch documentation, inconsistent purity claims, and no traceable COA before you commit budget to a run.</p><p>Here is why more research teams standardize on documented, batch-tested supply:</p>',
+				closing: '<p>So why have more research teams switched to Alyve Peptides? Because documented purity, published COAs, and predictable domestic fulfillment are not extras—they are the baseline.</p>',
+				items: [
+					{
+						headline: 'Unverified purity claims can invalidate your data.',
+						body: '<p>Your outcomes depend on what is actually in the vial. Without independent testing on every batch, you are trusting a label—not a lab result.</p>',
+					},
+					{
+						headline: 'No COA before purchase means no audit trail.',
+						body: '<p>Reputable suppliers publish Certificates of Analysis tied to batch numbers before you buy. Gray-market listings rarely offer the same transparency.</p>',
+					},
+					{
+						headline: 'Inconsistent sourcing slows every experiment cycle.',
+						body: '<p>Switching vendors mid-study introduces variables you cannot control. A single catalog with documented batches keeps your team focused on research.</p>',
+					},
+					{
+						headline: 'Research-use standards matter for your reputation.',
+						body: '<p>Materials labeled and handled for research use, with clear disclaimers and batch traceability, reduce ambiguity for PI review and institutional policy.</p>',
+					},
+					{
+						headline: 'Verified supply is faster to trust than faster to ship.',
+						body: '<p>Tracked domestic shipping matters—but only after purity and documentation are settled.</p>',
+					},
+				],
+				cta_label: 'Shop research-grade peptides',
 				cta_href: '/shop',
 			};
 		}
@@ -1024,6 +1056,19 @@
 					if (textareas[0]) textareas[0].value = item.a || '';
 				});
 				break;
+			case 'listicle':
+				setVal(container, '[data-field="lc_headline"]', cfg.headline || '');
+				setVal(container, '[data-field="lc_intro"]', cfg.intro || '');
+				setVal(container, '[data-field="lc_closing"]', cfg.closing || '');
+				setVal(container, '[data-field="lc_cta_label"]', cfg.cta_label || '');
+				setVal(container, '[data-field="lc_cta_href"]', cfg.cta_href || '');
+				populateRepeaterItems(container, '.wchs-listicle-items', cfg.items || [], function (item, el) {
+					var inputs = el.querySelectorAll('input[type="text"]');
+					var textareas = el.querySelectorAll('textarea');
+					if (inputs[0]) inputs[0].value = item.headline || '';
+					if (textareas[0]) textareas[0].value = item.body || '';
+				});
+				break;
 			case 'text_block':
 				setVal(container, '[data-field="tb_layout"]', cfg.layout || 'auto');
 				setVal(container, '[data-field="tb_headline"]', cfg.headline || '');
@@ -1284,6 +1329,15 @@
 			case 'accordion':
 				cfg.items = readAccordionItems(container);
 				break;
+			case 'listicle':
+				cfg.headline = getVal(container, '[data-field="lc_headline"]') || '';
+				cfg.intro = getVal(container, '[data-field="lc_intro"]') || '';
+				cfg.closing = getVal(container, '[data-field="lc_closing"]') || '';
+				cfg.cta_label = getVal(container, '[data-field="lc_cta_label"]') || '';
+				cfg.cta_href = getVal(container, '[data-field="lc_cta_href"]') || '';
+				cfg.items = readListicleItems(container);
+				delete cfg.title;
+				break;
 			case 'text_block':
 				cfg.layout = getVal(container, '[data-field="tb_layout"]') || 'auto';
 				cfg.headline = getVal(container, '[data-field="tb_headline"]') || '';
@@ -1491,9 +1545,25 @@
 	function readAccordionItems(ctx) {
 		var items = [];
 		ctx.querySelectorAll('.wchs-accordion-items .wchs-accordion-item').forEach(function (el) {
+			if (el.closest('.wchs-listicle-items')) return;
 			var inputs = el.querySelectorAll('input');
 			var textareas = el.querySelectorAll('textarea');
 			items.push({ q: inputs[0] ? inputs[0].value : '', a: textareas[0] ? textareas[0].value : '' });
+		});
+		return items;
+	}
+
+	function readListicleItems(ctx) {
+		var items = [];
+		ctx.querySelectorAll('.wchs-listicle-items .wchs-accordion-item').forEach(function (el) {
+			var inputs = el.querySelectorAll('input[type="text"]');
+			var textareas = el.querySelectorAll('textarea');
+			var headline = inputs[0] ? inputs[0].value.trim() : '';
+			if (!headline) return;
+			items.push({
+				headline: headline,
+				body: textareas[0] ? textareas[0].value : '',
+			});
 		});
 		return items;
 	}
@@ -2138,6 +2208,18 @@
 			container.appendChild(div);
 		}
 		// Modal-context add buttons (accordion + split_features inside module editor modal)
+		var addListicleModal = e.target.closest('.wchs-add-listicle-item-modal');
+		if (addListicleModal) {
+			var lcWrap = addListicleModal.closest('.wchs-field').querySelector('.wchs-listicle-items');
+			if (!lcWrap) return;
+			var lcTpl = lcWrap.querySelector('.wchs-accordion-item');
+			if (!lcTpl) return;
+			var lcClone = lcTpl.cloneNode(true);
+			lcClone.querySelectorAll('input, textarea').forEach(function (el) { el.value = ''; });
+			lcWrap.appendChild(lcClone);
+			return;
+		}
+
 		var addAccordionModal = e.target.closest('.wchs-add-accordion-item-modal');
 		if (addAccordionModal) {
 			var container = addAccordionModal.previousElementSibling;

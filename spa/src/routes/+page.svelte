@@ -17,6 +17,7 @@
 	import Spacer from '$lib/components/Spacer.svelte';
 	import LogoStrip from '$lib/components/LogoStrip.svelte';
 	import Video from '$lib/components/Video.svelte';
+	import Listicle from '$lib/components/Listicle.svelte';
 	import SEO from '$lib/components/SEO.svelte';
 	import {
 		config,
@@ -100,6 +101,8 @@
 			<OrderHandling config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header ?? true} />
 		{:else if mod.type === 'accordion'}
 			<Accordion config={mod.config} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
+		{:else if mod.type === 'listicle'}
+			<Listicle config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} />
 		{:else if mod.type === 'text_block'}
 			<TextBlock config={mod.config} resolved={mod.resolved} spacing_v={mod.spacing_v || 'normal'} spacing_h={mod.spacing_h || 'normal'} center_header={mod.center_header || false} />
 		{:else if mod.type === 'gallery'}
